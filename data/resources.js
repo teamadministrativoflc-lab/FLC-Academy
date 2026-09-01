@@ -328,247 +328,204 @@ window.RESOURCES = {
 };
 
 // TUTORIALS — grouped by company with subcategories (Portales, Cómo ilustrar, etc.)
-// Each video has a Google Drive share URL that gets auto-converted to embed format.
-window.TUTORIAL_GROUPS = [
+// TUTORIALS — organized into 3 categories:
+//   1. Ilustraciones y cotizaciones (por compañía)
+//   2. Registro en las compañías
+//   3. Mentalidad
+// Videos in YouTube or Drive — the player auto-converts both.
+window.TUTORIAL_CATEGORIES = [
   {
-    companyId: 'nlg',
-    company: 'National Life Group',
+    id: 'ilustraciones',
+    title_es: 'Ilustraciones y cotizaciones',
+    title_en: 'Illustrations & quoting',
+    icon: 'chart',
     color: '#1e5b8f',
-    sections: [
+    desc_es: 'Aprende a ilustrar y cotizar en cada plataforma.',
+    desc_en: 'Learn to illustrate and quote on each platform.',
+    groups: [
       {
-        title_es: 'Portales',
-        title_en: 'Portals',
+        companyId: 'nlg',
+        company: 'National Life Group',
+        color: '#1e5b8f',
         videos: [
-          {
-            id: 'nlg-portal',
-            title_es: 'Tu portal',
-            title_en: 'Your portal',
-            url: 'https://drive.google.com/file/d/1pd_ljtr4yfZBQHBM4HpUWK1IbI1ZnF-v/view?usp=drive_link',
-          },
-          {
-            id: 'nlg-illust-portal',
-            title_es: 'Portal de ilustraciones',
-            title_en: 'Illustration portal',
-            url: 'https://drive.google.com/file/d/1bqf4I1NefYrLH0iCPw8dCkcYcP30crdb/view?usp=drive_link',
-          },
+          { id: 'nlg-portal', title_es: 'Portal NLG', title_en: 'NLG Portal',
+            url: 'https://youtu.be/I2W7vK0tgEw' },
+          { id: 'nlg-portal-illust', title_es: 'Portal de ilustraciones NLG', title_en: 'NLG illustration portal',
+            url: 'https://youtu.be/RjmGtIi2px0' },
+          { id: 'nlg-how', title_es: 'Cómo funciona el portal de ilustraciones', title_en: 'How the illustration portal works',
+            url: 'https://youtu.be/R40yFdFiEjg' },
+          { id: 'nlg-term', title_es: 'Cómo ilustrar un Término', title_en: 'How to illustrate Term',
+            url: 'https://youtu.be/xg02xLxHn2U' },
+          { id: 'nlg-coverage', title_es: 'Ilustrar para cobertura y ahorro', title_en: 'Illustrate for coverage & savings',
+            url: 'https://youtu.be/e-qDF8qpeAs' },
+          { id: 'nlg-max', title_es: 'Ilustrar para máxima acumulación', title_en: 'Illustrate for max accumulation',
+            url: 'https://youtu.be/WFw4LbumrNw' },
         ],
       },
       {
-        title_es: 'Cómo ilustrar',
-        title_en: 'How to illustrate',
+        companyId: 'americo',
+        company: 'Americo',
+        color: '#8b1e3f',
         videos: [
-          {
-            id: 'nlg-illust-general',
-            title_es: 'Cómo ilustrar — introducción',
-            title_en: 'How to illustrate — intro',
-            url: 'https://drive.google.com/file/d/1iAXNejsRmQLRqhwjUjmqb3iGmcINzwex/view?usp=drive_link',
-          },
-          {
-            id: 'nlg-illust-term',
-            title_es: 'Ilustración Término',
-            title_en: 'Term illustration',
-            url: 'https://drive.google.com/file/d/1I2EgBQSXtCwD7EJADXrUh4ehPjB6l8fL/view?usp=drive_link',
-          },
-          {
-            id: 'nlg-illust-coverage',
-            title_es: 'Ilustración para cobertura y ahorro',
-            title_en: 'Illustration for coverage & savings',
-            url: 'https://drive.google.com/file/d/1XuobIRClen2tQi1zSskd9yfPp6NVp1J2/view?usp=drive_link',
-          },
-          {
-            id: 'nlg-illust-max',
-            title_es: 'Ilustración máxima acumulación',
-            title_en: 'Max accumulation illustration',
-            url: 'https://drive.google.com/file/d/1Acr_R0CZ0eXd6TKR8NXEKaFjo7NW8F7W/view?usp=drive_link',
-          },
+          { id: 'americo-fe', title_es: 'Cotizar Gastos Finales', title_en: 'Quote Final Expense',
+            url: 'https://youtu.be/drjkZNPU2Uo' },
+          { id: 'americo-iul', title_es: 'Cómo ilustrar IUL', title_en: 'How to illustrate IUL',
+            url: 'https://youtu.be/lmd_M-YI1sg' },
+          { id: 'americo-term', title_es: 'Cómo ilustrar un Término', title_en: 'How to illustrate Term',
+            url: 'https://youtu.be/bRD4CHr2l5A' },
         ],
       },
-    ],
-  },
-  {
-    companyId: 'moo',
-    company: 'Mutual of Omaha',
-    color: '#1a4d8f',
-    sections: [
       {
-        title_es: 'Cotizaciones',
-        title_en: 'Quoting',
+        companyId: 'aa',
+        company: 'American Amicable',
+        color: '#2d5142',
         videos: [
-          {
-            id: 'moo-quote',
-            title_es: 'Cómo cotizar',
-            title_en: 'How to quote',
-            url: 'https://drive.google.com/file/d/1QdyWrniVB22p-tRtUCmkCrFQEG1lPGmW/view?usp=drive_link',
-          },
+          { id: 'aa-quote', title_es: 'Cómo cotizar en American Amicable', title_en: 'How to quote in American Amicable',
+            url: 'https://youtu.be/2CP4I-xnMb4' },
         ],
       },
-    ],
-  },
-  {
-    companyId: 'americo',
-    company: 'Americo',
-    color: '#8b1e3f',
-    sections: [
       {
-        title_es: 'Productos',
-        title_en: 'Products',
+        companyId: 'transamerica',
+        company: 'Transamerica',
+        color: '#1a5490',
         videos: [
-          {
-            id: 'americo-fe',
-            title_es: 'Gastos Finales',
-            title_en: 'Final Expense',
-            url: 'https://drive.google.com/file/d/1QpsAGGe3vI3m-lLUtpwnX67MYq6ZtGWN/view?usp=drive_link',
-          },
-          {
-            id: 'americo-iul',
-            title_es: 'IUL',
-            title_en: 'IUL',
-            url: 'https://drive.google.com/file/d/14CV2M5YOySsoq3TsHaiQf5lgDw3rOsj-/view?usp=drive_link',
-          },
-          {
-            id: 'americo-term',
-            title_es: 'Término',
-            title_en: 'Term',
-            url: 'https://drive.google.com/file/d/19wYjmfVbNKdL8PG7bI6DHq5r6FKioVxE/view?usp=drive_link',
-          },
+          { id: 'ta-illust', title_es: 'Cómo ilustrar en Transamerica', title_en: 'How to illustrate in Transamerica',
+            url: 'https://youtu.be/5M3scZc7QoE' },
+        ],
+      },
+      {
+        companyId: 'corebridge',
+        company: 'Corebridge',
+        color: '#0e3860',
+        videos: [
+          { id: 'cb-quote', title_es: 'Cómo cotizar en Corebridge', title_en: 'How to quote in Corebridge',
+            url: 'https://youtu.be/-TN9WX0gz5I' },
+        ],
+      },
+      {
+        companyId: 'fg',
+        company: 'F&G',
+        color: '#c9a24a',
+        videos: [
+          { id: 'fg-ev-max', title_es: 'Everlast — máxima acumulación', title_en: 'Everlast — max accumulation',
+            url: 'https://youtu.be/p5K4ru5nK2s' },
+          { id: 'fg-ev-cov', title_es: 'Everlast — basada en cobertura', title_en: 'Everlast — coverage-based',
+            url: 'https://youtu.be/nhqI3KDM7ZE' },
+          { id: 'fg-path-cov', title_es: 'Pathsetter — basada en cobertura', title_en: 'Pathsetter — coverage-based',
+            url: 'https://youtu.be/sAh8LEPsU7E' },
+        ],
+      },
+      {
+        companyId: 'moo',
+        company: 'Mutual of Omaha',
+        color: '#1a4d8f',
+        videos: [
+          { id: 'moo-quote', title_es: 'Cómo cotizar en Mutual of Omaha', title_en: 'How to quote in Mutual of Omaha',
+            url: 'https://youtu.be/HPxBgy5NHY8' },
         ],
       },
     ],
   },
+
   {
-    companyId: 'corebridge',
-    company: 'Corebridge',
-    color: '#0e3860',
-    sections: [
-      {
-        title_es: 'Cotizaciones',
-        title_en: 'Quoting',
-        videos: [
-          {
-            id: 'cb-fe',
-            title_es: 'Cotización — ambos gastos finales',
-            title_en: 'Quoting — both Final Expense types',
-            url: 'https://drive.google.com/file/d/1MaQJOjchbJnmzq8SY-CQtobnjWorPkgJ/view?usp=drive_link',
-          },
-        ],
-      },
-    ],
-  },
-  {
-    companyId: 'aa',
-    company: 'American Amicable',
-    color: '#2d5142',
-    sections: [
-      {
-        title_es: 'Cotizaciones',
-        title_en: 'Quoting',
-        videos: [
-          {
-            id: 'aa-products',
-            title_es: 'Cotización de productos',
-            title_en: 'Product quoting',
-            url: 'https://drive.google.com/file/d/17EKGChlW1_D-iOA0kCDSxb6ifJsm87Uj/view?usp=drive_link',
-          },
-        ],
-      },
-    ],
-  },
-  {
-    companyId: 'fg',
-    company: 'F&G',
-    color: '#c9a24a',
-    sections: [
-      {
-        title_es: 'Everlast',
-        title_en: 'Everlast',
-        videos: [
-          {
-            id: 'fg-everlast-max',
-            title_es: 'Everlast — máxima acumulación',
-            title_en: 'Everlast — max accumulation',
-            url: 'https://drive.google.com/file/d/1o4f4lj70LDEDq5XvqWitZmZGNYvrEkBj/view?usp=drive_link',
-          },
-          {
-            id: 'fg-everlast-cov',
-            title_es: 'Everlast — basada en cobertura',
-            title_en: 'Everlast — coverage-based',
-            url: 'https://drive.google.com/file/d/1jH3nAU_1jUnxoHFlrpLK-aPokWo5ob_C/view?usp=drive_link',
-          },
-        ],
-      },
-      {
-        title_es: 'Pathsetter',
-        title_en: 'Pathsetter',
-        videos: [
-          {
-            id: 'fg-path-cov',
-            title_es: 'Pathsetter — basada en cobertura',
-            title_en: 'Pathsetter — coverage-based',
-            url: 'https://drive.google.com/file/d/1GGgaQIKSLjknfeKQJjwzF8RrvbWKyUXI/view?usp=drive_link',
-          },
-          {
-            id: 'fg-path-max',
-            title_es: 'Pathsetter — máxima acumulación',
-            title_en: 'Pathsetter — max accumulation',
-            url: 'https://drive.google.com/file/d/1srH-qJdQQOZrgZLs0Z99udSD_AJm00HS/view?usp=drive_link',
-          },
-        ],
-      },
-    ],
-  },
-  // Companies without videos yet — shown with a "coming soon" placeholder
-  {
-    companyId: 'aetna',
-    company: 'Aetna',
-    color: '#6f2c91',
-    sections: [],
-    pending: true,
-  },
-  {
-    companyId: 'transamerica',
-    company: 'Transamerica',
-    color: '#1a5490',
-    sections: [
-      {
-        title_es: 'Cómo ilustrar',
-        title_en: 'How to illustrate',
-        videos: [
-          {
-            id: 'ta-illust',
-            title_es: 'Cómo ilustrar',
-            title_en: 'How to illustrate',
-            url: 'https://drive.google.com/file/d/1gvHVC7BgBxJDs3NS1ZiBMBajvaNWeDAA/view?usp=drive_link',
-          },
-        ],
-      },
-    ],
-  },
-  // Entrenamientos generales — no ligados a un carrier específico
-  {
-    companyId: 'entrenamientos',
-    company: 'Entrenamientos',
-    company_en: 'Trainings',
+    id: 'registro',
+    title_es: 'Registro en las compañías',
+    title_en: 'Carrier registration',
+    icon: 'shield',
     color: '#4a7a2a',
-    isTraining: true,   // used to render slightly differently (no "carrier" tag)
-    sections: [
+    desc_es: 'Cómo darte de alta en el portal de cada aseguradora.',
+    desc_en: 'How to sign up on each carrier\'s portal.',
+    groups: [
       {
-        title_es: 'Mentalidad y ventas',
-        title_en: 'Mindset & sales',
+        companyId: 'nlg', company: 'National Life Group', color: '#1e5b8f',
         videos: [
-          {
-            id: 'training-invest',
-            title_es: 'Cómo invertir como un empresario',
-            title_en: 'How to invest like an entrepreneur',
-            url: 'https://drive.google.com/file/d/131MfK_Xvm_95Ex6aPD1CU8jlmqhBezvy/view?usp=sharing',
-          },
+          { id: 'reg-nlg', title_es: 'Registro en National Life', title_en: 'Registration in National Life',
+            url: 'https://youtu.be/oq28e_kxFm8' },
+        ],
+      },
+      {
+        companyId: 'americo', company: 'Americo', color: '#8b1e3f',
+        videos: [
+          { id: 'reg-americo', title_es: 'Registro en Americo', title_en: 'Registration in Americo',
+            url: 'https://youtu.be/xuIBl_oKD24' },
+        ],
+      },
+      {
+        companyId: 'aa', company: 'American Amicable', color: '#2d5142',
+        videos: [
+          { id: 'reg-aa', title_es: 'Registro en American Amicable', title_en: 'Registration in American Amicable',
+            url: 'https://youtu.be/5o9FhmnJcAc' },
+        ],
+      },
+      {
+        companyId: 'fg', company: 'F&G', color: '#c9a24a',
+        videos: [
+          { id: 'reg-fg', title_es: 'Registro en F&G', title_en: 'Registration in F&G',
+            url: 'https://youtu.be/S9xQhMPTvUg' },
+        ],
+      },
+      {
+        companyId: 'moo', company: 'Mutual of Omaha', color: '#1a4d8f',
+        videos: [
+          { id: 'reg-moo', title_es: 'Registro en Mutual of Omaha', title_en: 'Registration in Mutual of Omaha',
+            url: 'https://youtu.be/q56IxRsoRDQ' },
+        ],
+      },
+      {
+        companyId: 'aetna', company: 'Aetna', color: '#6f2c91',
+        videos: [
+          { id: 'reg-aetna', title_es: 'Registro en Aetna', title_en: 'Registration in Aetna',
+            url: 'https://youtu.be/nxr3rKxikj0' },
+        ],
+      },
+      {
+        companyId: 'foresters', company: 'Foresters', color: '#0a7052',
+        videos: [
+          { id: 'reg-foresters', title_es: 'Registro en Foresters', title_en: 'Registration in Foresters',
+            url: 'https://youtu.be/1Xm0wo1FjzQ' },
+        ],
+      },
+      {
+        companyId: 'athene', company: 'Athene', color: '#6b4a7d',
+        videos: [
+          { id: 'reg-athene', title_es: 'Registro en Athene', title_en: 'Registration in Athene',
+            url: 'https://youtu.be/YGgBPaz0MgU' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'mentalidad',
+    title_es: 'Mentalidad',
+    title_en: 'Mindset',
+    icon: 'sparkle',
+    color: '#a5822f',
+    desc_es: 'Entrenamientos de mentalidad y crecimiento como empresario.',
+    desc_en: 'Mindset and business-owner training.',
+    groups: [
+      {
+        companyId: 'mindset', company: 'Entrenamientos', color: '#a5822f',
+        hideCompanyLabel: true,
+        videos: [
+          { id: 'mind-before-result',
+            title_es: 'Mentalidad antes del resultado',
+            title_en: 'Mindset before the result',
+            url: 'https://youtu.be/zFYf9GTvi0o' },
+          { id: 'mind-agent-entrepreneur',
+            title_es: 'Pasar de agente a empresario',
+            title_en: 'From agent to entrepreneur',
+            url: 'https://drive.google.com/file/d/131MfK_Xvm_95Ex6aPD1CU8jlmqhBezvy/view?usp=drive_link' },
+          { id: 'mind-virtual',
+            title_es: 'Trabajar en un entorno virtual',
+            title_en: 'Working in a virtual environment',
+            url: 'https://drive.google.com/file/d/1JkNLMFXGPW3gNZwdbCZru8gIbiJjWjf1/view?usp=drive_link' },
         ],
       },
     ],
   },
 ];
 
-// Progress modules — each connects to a resource in the Resources page.
-// Completion: open the resource viewer → mark as read → module = 100%.
 window.PROGRESS_MODULES = [
   {
     id: 'm1',
