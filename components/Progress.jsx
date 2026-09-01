@@ -2,36 +2,69 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
   const modules = window.PROGRESS_MODULES;
   const [openView, setOpenView] = React.useState(null);
   const [showCert, setShowCert] = React.useState(false);
-
-
+  const [showQuiz, setShowQuiz] = React.useState(false);
+  // Force re-render when quiz state changes (localStorage)
+  const [quizVersion, setQuizVersion] = React.useState(0);
 
   const totalPct = Math.round(
     modules.reduce((sum, m) => sum + (progress[m.id] || 0), 0) / modules.length
   );
 
-  // Auto-open certificate once, when user hits 100% for the first time
+  const modulesComplete = totalPct === 100;
+
+  // Quiz state
+  const quizPassed = user && user.email
+    ? (() => { try { return localStorage.getItem(`flc_quiz_passed_${user.email}`) === '1'; } catch { return false; } })()
+    : false;
+  const quizAttempts = user && user.email
+    ? (() => { try { return Number(localStorage.getItem(`flc_quiz_attempts_${user.email}`)) || 0; } catch { return 0; } })()
+    : 0;
+  const quizBestScore = user && user.email
+    ? (() => { try { return Number(localStorage.getItem(`flc_quiz_best_score_${user.email}`)) || 0; } catch { return 0; } })()
+    : 0;
+  const quizAttemptsLeft = Math.max(0, (window.QUIZ_MAX_ATTEMPTS || 3) - quizAttempts);
+  const quizExhausted = quizAttemptsLeft === 0 && !quizPassed;
+
+  const certUnlocked = modulesComplete && quizPassed;
+
+  // Auto-open quiz when user completes modules for the first time
   React.useEffect(() => {
-    if (totalPct === 100 && user && user.email) {
+    if (modulesComplete && !quizPassed && !quizExhausted && user && user.email) {
+      const key = `flc_quiz_prompted_${user.email}`;
+      if (!localStorage.getItem(key)) {
+        setShowQuiz(true);
+        localStorage.setItem(key, '1');
+      }
+    }
+  }, [modulesComplete]);
+
+  // Auto-open certificate when quiz is passed for the first time
+  React.useEffect(() => {
+    if (certUnlocked && user && user.email) {
       const key = `flc_cert_shown_${user.email}`;
       if (!localStorage.getItem(key)) {
         setShowCert(true);
         localStorage.setItem(key, '1');
       }
     }
-  }, [totalPct]);
+  }, [certUnlocked]);
 
   const openModule = (m) => {
-    // Mark as at least 50% when opened
     if (!progress[m.id] || progress[m.id] < 50) {
       setProgress({ ...progress, [m.id]: 50 });
     }
     setOpenView(m.resource);
   };
-  const markComplete = (id) => {
-    setProgress({ ...progress, [id]: 100 });
+  const markComplete = (id) => { setProgress({ ...progress, [id]: 100 }); };
+  const reset = (id) => { setProgress({ ...progress, [id]: 0 }); };
+
+  const handleQuizPass = () => {
+    // Force re-render so certUnlocked recomputes
+    setQuizVersion(v => v + 1);
   };
-  const reset = (id) => {
-    setProgress({ ...progress, [id]: 0 });
+  const handleQuizClose = () => {
+    setShowQuiz(false);
+    setQuizVersion(v => v + 1);
   };
 
   return (
@@ -40,51 +73,21 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
       <h1 className="page-title">{t('p_title_a')} <em>{t('p_title_b')}</em></h1>
       <p className="page-sub">{t('p_sub')}</p>
 
-      {/* Certificate card */}
-      <div style={{
-        background: 'linear-gradient(135deg, #050805 0%, #0f1a0f 55%, #1c2e18 100%)',
-        color: 'var(--cream)',
-        padding: '32px 36px',
-        borderRadius: 'var(--radius-lg)',
-        marginBottom: 32,
-        display: 'flex', alignItems: 'center', gap: 24,
-        position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{
-          position: 'absolute', top: -80, right: -60,
-          width: 280, height: 280, borderRadius: 140,
-          background: 'radial-gradient(circle, rgba(124,179,66,.25), transparent 65%)',
-        }} />
-        <div style={{
-          width: 90, height: 90, borderRadius: 45,
-          background: totalPct === 100 ? 'var(--gold)' : 'rgba(124,179,66,.15)',
-          color: totalPct === 100 ? '#0a0f0a' : 'var(--green-soft)',
-          display: 'grid', placeItems: 'center',
-          border: '1.5px solid ' + (totalPct === 100 ? 'var(--gold)' : 'var(--green)'),
-          flexShrink: 0, zIndex: 1,
-        }}>
-          <I name={totalPct === 100 ? 'star' : 'lock'} size={36} stroke={1.4} />
-        </div>
-        <div style={{ flex: 1, zIndex: 1 }}>
-          <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase',
-                        color: 'var(--green-soft)', fontWeight: 700, marginBottom: 4 }}>
-            {t('p_certificate')}
-          </div>
-          <div className="serif" style={{ fontSize: 30, color: 'var(--cream)', marginBottom: 4, lineHeight: 1.1 }}>
-            {totalPct === 100 ? t('p_certificate_ready') :
-             (lang === 'es' ? `${totalPct}% de tu formación completada` : `${totalPct}% of your training done`)}
-          </div>
-          <div style={{ fontSize: 14, color: 'rgba(246,247,242,.7)' }}>
-            {totalPct < 100 ? t('p_certificate_locked') :
-              (lang === 'es' ? 'Ya puedes descargar tu certificado interno.' : 'You can now download your internal certificate.')}
-          </div>
-        </div>
-        {totalPct === 100 && (
-          <button className="btn-gold" style={{ zIndex: 1 }} onClick={() => setShowCert(true)}>
-            <I name="star" size={14} /> {lang === 'es' ? 'Ver certificado' : 'View certificate'}
-          </button>
-        )}
-      </div>
+      {/* Certificate + Quiz gate */}
+      <CertificateGate
+        totalPct={totalPct}
+        modulesComplete={modulesComplete}
+        quizPassed={quizPassed}
+        quizAttempts={quizAttempts}
+        quizAttemptsLeft={quizAttemptsLeft}
+        quizExhausted={quizExhausted}
+        quizBestScore={quizBestScore}
+        certUnlocked={certUnlocked}
+        lang={lang}
+        t={t}
+        onOpenQuiz={() => setShowQuiz(true)}
+        onOpenCert={() => setShowCert(true)}
+      />
 
       {/* Modules */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: 16 }}>
@@ -98,7 +101,6 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
               display: 'flex', alignItems: 'center', gap: 20,
               borderLeft: `4px solid ${isDone ? 'var(--success)' : m.color}`,
             }}>
-              {/* Icon + number */}
               <div style={{
                 width: 64, height: 64, borderRadius: 12,
                 background: isDone ? 'var(--success)' : `${m.color}18`,
@@ -116,7 +118,6 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
                 }}>{idx + 1}</div>
               </div>
 
-              {/* Content */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
@@ -141,7 +142,6 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
                   {lang === 'es' ? m.desc_es : m.desc_en}
                 </div>
 
-                {/* Linked resource pill */}
                 <div style={{
                   display: 'inline-flex', alignItems: 'center', gap: 8,
                   padding: '5px 10px', background: 'var(--cream-warm)',
@@ -155,7 +155,6 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
                   </strong>
                 </div>
 
-                {/* Progress bar */}
                 <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{
                     flex: 1, height: 6, background: 'var(--line-soft)',
@@ -174,7 +173,6 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
                 </div>
               </div>
 
-              {/* Actions */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, minWidth: 160 }}>
                 <button
                   onClick={() => openModule(m)}
@@ -209,14 +207,180 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
         })}
       </div>
 
-      {/* Resource viewers — reuse from Resources.jsx (globally exposed) */}
+      {/* Resource viewers */}
       {openView && renderViewer(openView, { lang, t, onClose: () => setOpenView(null) })}
+
+      {/* Quiz modal */}
+      {showQuiz && window.Quiz && React.createElement(window.Quiz, {
+        user, lang, t,
+        onClose: handleQuizClose,
+        onPass: handleQuizPass,
+      })}
 
       {/* Certificate */}
       {showCert && window.Certificate && React.createElement(window.Certificate, {
         user, modules, progress, lang,
         onClose: () => setShowCert(false),
       })}
+    </div>
+  );
+}
+
+// ============ CERTIFICATE GATE ============
+function CertificateGate({
+  totalPct, modulesComplete, quizPassed, quizAttempts, quizAttemptsLeft,
+  quizExhausted, quizBestScore, certUnlocked, lang, t, onOpenQuiz, onOpenCert
+}) {
+  // State: LOCKED (modules incomplete) → QUIZ_PENDING → QUIZ_EXHAUSTED or UNLOCKED
+  let state = 'locked';
+  if (certUnlocked) state = 'unlocked';
+  else if (quizExhausted) state = 'exhausted';
+  else if (modulesComplete) state = 'quiz-pending';
+
+  // Icon + colors per state
+  const config = {
+    locked: {
+      icon: 'lock',
+      bgIcon: 'rgba(124,179,66,.15)',
+      colorIcon: 'var(--green-soft)',
+      border: 'var(--green)',
+    },
+    'quiz-pending': {
+      icon: 'sparkle',
+      bgIcon: 'rgba(201,162,74,.2)',
+      colorIcon: 'var(--gold-soft)',
+      border: 'var(--gold)',
+    },
+    exhausted: {
+      icon: 'warning',
+      bgIcon: 'rgba(176,74,60,.2)',
+      colorIcon: '#ff9a8a',
+      border: 'var(--danger)',
+    },
+    unlocked: {
+      icon: 'star',
+      bgIcon: 'var(--gold)',
+      colorIcon: '#0a0f0a',
+      border: 'var(--gold)',
+    },
+  }[state];
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #050805 0%, #0f1a0f 55%, #1c2e18 100%)',
+      color: 'var(--cream)',
+      padding: '32px 36px',
+      borderRadius: 'var(--radius-lg)',
+      marginBottom: 32,
+      display: 'flex', alignItems: 'center', gap: 24,
+      position: 'relative', overflow: 'hidden',
+    }}>
+      <div style={{
+        position: 'absolute', top: -80, right: -60,
+        width: 280, height: 280, borderRadius: 140,
+        background: 'radial-gradient(circle, rgba(124,179,66,.25), transparent 65%)',
+      }} />
+      <div style={{
+        width: 90, height: 90, borderRadius: 45,
+        background: config.bgIcon,
+        color: config.colorIcon,
+        display: 'grid', placeItems: 'center',
+        border: '1.5px solid ' + config.border,
+        flexShrink: 0, zIndex: 1,
+      }}>
+        <I name={config.icon} size={36} stroke={1.4} />
+      </div>
+      <div style={{ flex: 1, zIndex: 1 }}>
+        <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase',
+                      color: 'var(--green-soft)', fontWeight: 700, marginBottom: 4 }}>
+          {t('p_certificate')}
+        </div>
+
+        {state === 'locked' && (
+          <>
+            <div className="serif" style={{ fontSize: 30, color: 'var(--cream)', marginBottom: 4, lineHeight: 1.1 }}>
+              {lang === 'es' ? `${totalPct}% de tu formación completada` : `${totalPct}% of your training done`}
+            </div>
+            <div style={{ fontSize: 14, color: 'rgba(246,247,242,.7)' }}>
+              {lang === 'es'
+                ? 'Completa los 3 módulos primero. Luego harás un mini quiz para desbloquear tu certificado.'
+                : 'Complete the 3 modules first. Then a mini quiz unlocks your certificate.'}
+            </div>
+          </>
+        )}
+
+        {state === 'quiz-pending' && (
+          <>
+            <div className="serif" style={{ fontSize: 30, color: 'var(--cream)', marginBottom: 4, lineHeight: 1.1 }}>
+              🎯 {lang === 'es' ? 'Ya casi… falta el quiz final' : 'Almost there… final quiz pending'}
+            </div>
+            <div style={{ fontSize: 14, color: 'rgba(246,247,242,.75)', marginBottom: 4 }}>
+              {lang === 'es'
+                ? 'Completaste los 3 módulos. Aprueba el quiz final (15 preguntas, 70% para pasar) y tu certificado quedará listo.'
+                : 'You completed all 3 modules. Pass the final quiz (15 questions, 70% to pass) and your certificate is ready.'}
+            </div>
+            {quizAttempts > 0 && (
+              <div style={{ fontSize: 12, color: 'var(--gold-soft)', marginTop: 4 }}>
+                {lang === 'es' ? `Intento ${quizAttempts}/3 · mejor puntaje: ${quizBestScore}% · ${quizAttemptsLeft} intentos restantes` :
+                                 `Attempt ${quizAttempts}/3 · best: ${quizBestScore}% · ${quizAttemptsLeft} attempts left`}
+              </div>
+            )}
+          </>
+        )}
+
+        {state === 'exhausted' && (
+          <>
+            <div className="serif" style={{ fontSize: 30, color: 'var(--cream)', marginBottom: 4, lineHeight: 1.1 }}>
+              {lang === 'es' ? 'Habla con tu manager' : 'Talk to your manager'}
+            </div>
+            <div style={{ fontSize: 14, color: 'rgba(255,180,170,.85)' }}>
+              {lang === 'es'
+                ? `Usaste tus 3 intentos del quiz. Mejor puntaje: ${quizBestScore}%. Contacta a tu manager para próximos pasos.`
+                : `You've used your 3 quiz attempts. Best score: ${quizBestScore}%. Contact your manager for next steps.`}
+            </div>
+          </>
+        )}
+
+        {state === 'unlocked' && (
+          <>
+            <div className="serif" style={{ fontSize: 30, color: 'var(--cream)', marginBottom: 4, lineHeight: 1.1 }}>
+              ⭐ {t('p_certificate_ready')}
+            </div>
+            <div style={{ fontSize: 14, color: 'rgba(246,247,242,.75)' }}>
+              {lang === 'es'
+                ? `Aprobaste el quiz con ${quizBestScore}%. Ya puedes descargar tu certificado interno.`
+                : `You passed with ${quizBestScore}%. You can now download your internal certificate.`}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div style={{ zIndex: 1, display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+        {state === 'quiz-pending' && (
+          <button className="btn-gold" onClick={onOpenQuiz}>
+            <I name="sparkle" size={14} />
+            {quizAttempts === 0
+              ? (lang === 'es' ? 'Empezar quiz' : 'Start quiz')
+              : (lang === 'es' ? 'Reintentar quiz' : 'Retry quiz')}
+          </button>
+        )}
+        {state === 'unlocked' && (
+          <>
+            <button className="btn-gold" onClick={onOpenCert}>
+              <I name="star" size={14} /> {lang === 'es' ? 'Ver certificado' : 'View certificate'}
+            </button>
+            <button onClick={onOpenQuiz} style={{
+              padding: '8px 12px', fontSize: 11, fontWeight: 500,
+              background: 'transparent', color: 'rgba(246,247,242,.5)',
+              border: '1px solid rgba(246,247,242,.15)',
+              borderRadius: 6, cursor: 'pointer',
+            }}>
+              {lang === 'es' ? 'Reintentar quiz' : 'Retry quiz'}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

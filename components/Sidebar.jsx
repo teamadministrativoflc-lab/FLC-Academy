@@ -43,6 +43,25 @@ function Sidebar({ page, setPage, user, onLogout, t, lang }) {
           </div>
           <span className="sb-icon" style={{ opacity: .5 }}><I name="logout" size={16} /></span>
         </div>
+
+        <div style={{
+          marginTop: 14, paddingTop: 12,
+          borderTop: '1px solid rgba(124,179,66,.08)',
+          fontSize: 10, letterSpacing: '0.06em',
+          color: 'rgba(246,247,242,.35)', textAlign: 'center',
+        }}>
+          {lang === 'es' ? 'Creado por ' : 'Crafted by '}
+          <a href="https://isanestudiocreativo.com" target="_blank" rel="noopener noreferrer"
+             style={{
+               color: 'rgba(165,214,112,.7)', fontWeight: 500,
+               textDecoration: 'none', letterSpacing: '0.04em',
+               transition: 'color .15s',
+             }}
+             onMouseEnter={e => e.currentTarget.style.color = 'var(--green-soft)'}
+             onMouseLeave={e => e.currentTarget.style.color = 'rgba(165,214,112,.7)'}>
+            Isan Estudio Creativo
+          </a>
+        </div>
       </div>
     </aside>
   );

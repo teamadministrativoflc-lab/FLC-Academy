@@ -120,6 +120,24 @@ function Login({ onLogin, t, lang, setLang }) {
             ? '¿Nuevo en la agencia? Pídele la contraseña a tu manager.'
             : 'New to the agency? Ask your manager for the password.'}
         </div>
+
+        <div style={{
+          marginTop: 40, paddingTop: 20, borderTop: '1px solid var(--line-soft)',
+          textAlign: 'center', fontSize: 11,
+          color: 'var(--ink-mute)', letterSpacing: '0.04em',
+        }}>
+          {lang === 'es' ? 'Creado por ' : 'Crafted by '}
+          <a href="https://isanestudiocreativo.com" target="_blank" rel="noopener noreferrer"
+             style={{
+               color: 'var(--green-dark)', fontWeight: 600, textDecoration: 'none',
+               borderBottom: '1px solid rgba(74,122,42,.3)',
+               transition: 'color .15s, border-color .15s',
+             }}
+             onMouseEnter={e => { e.currentTarget.style.color = 'var(--green)'; e.currentTarget.style.borderColor = 'var(--green)'; }}
+             onMouseLeave={e => { e.currentTarget.style.color = 'var(--green-dark)'; e.currentTarget.style.borderColor = 'rgba(74,122,42,.3)'; }}>
+            Isan Estudio Creativo
+          </a>
+        </div>
       </form>
     </div>
   );

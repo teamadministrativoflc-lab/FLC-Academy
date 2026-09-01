@@ -8,7 +8,7 @@
 //   Embed:    https://drive.google.com/file/d/FILE_ID/preview
 // The component auto-converts "view" → "preview" so you can paste either one.
 
-const WELCOME_VIDEO_URL = 'https://drive.google.com/file/d/1HydfW8BYjTdd0vvtsyaTi2_RYgpOYa2h/view?usp=drive_link';
+const WELCOME_VIDEO_URL = 'https://youtu.be/gfOgrRO_Ibw';
 
 function toEmbedUrl(url) {
   if (!url) return '';

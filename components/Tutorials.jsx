@@ -1,38 +1,49 @@
-// Converts Google Drive share URL → embed URL (also supports YouTube / Vimeo)
+// Converts YouTube / Vimeo / Google Drive share URLs → embed URLs
 function toEmbedUrl(url) {
   if (!url) return '';
+  // YouTube (youtu.be/X or youtube.com/watch?v=X)
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}?autoplay=1&rel=0`;
+  // Vimeo
+  const vim = url.match(/vimeo\.com\/(\d+)/);
+  if (vim) return `https://player.vimeo.com/video/${vim[1]}?autoplay=1`;
+  // Google Drive
   if (url.includes('drive.google.com/file/d/')) {
     return url.replace(/\/view.*$/, '/preview').replace(/\/edit.*$/, '/preview');
   }
-  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
-  if (yt) return `https://www.youtube.com/embed/${yt[1]}?autoplay=1`;
-  const vim = url.match(/vimeo\.com\/(\d+)/);
-  if (vim) return `https://player.vimeo.com/video/${vim[1]}?autoplay=1`;
   return url;
 }
 
+function isYouTube(url) {
+  return /(?:youtube\.com|youtu\.be)/.test(url);
+}
+
+function ytThumbnail(url) {
+  const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+  return m ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : null;
+}
+
 function Tutorials({ t, lang }) {
-  const groups = window.TUTORIAL_GROUPS || [];
-  if (!groups.length) {
-    return <div style={{ padding: 40 }}>No tutorials loaded.</div>;
-  }
-  // Default to first company with videos, or persisted choice
-  const firstWithVideos = groups.find(g => !g.pending)?.companyId || groups[0].companyId;
-  const [activeId, setActiveId] = React.useState(() => {
+  const categories = window.TUTORIAL_CATEGORIES || [];
+  if (!categories.length) return <div style={{ padding: 40 }}>No tutorials loaded.</div>;
+
+  const [activeCatId, setActiveCatId] = React.useState(() => {
     try {
-      const saved = localStorage.getItem('flc_tutorial_company');
-      // Only honor saved value if it still exists in current groups
-      if (saved && groups.some(g => g.companyId === saved)) return saved;
-      return firstWithVideos;
-    } catch { return firstWithVideos; }
+      const saved = localStorage.getItem('flc_tutorial_cat');
+      if (saved && categories.some(c => c.id === saved)) return saved;
+    } catch {}
+    return categories[0].id;
   });
   const [playing, setPlaying] = React.useState(null);
 
-  React.useEffect(() => { localStorage.setItem('flc_tutorial_company', activeId); }, [activeId]);
+  React.useEffect(() => {
+    localStorage.setItem('flc_tutorial_cat', activeCatId);
+  }, [activeCatId]);
 
-  const active = groups.find(g => g.companyId === activeId) || groups[0];
-  const sections = active.sections || [];
-  const totalVideos = sections.reduce((sum, s) => sum + (s.videos || []).length, 0);
+  const activeCat = categories.find(c => c.id === activeCatId) || categories[0];
+  const totalVideos = (activeCat.groups || []).reduce(
+    (sum, g) => sum + (g.videos || []).length, 0
+  );
 
   return (
     <div data-screen-label="05 Tutorials">
@@ -40,91 +51,107 @@ function Tutorials({ t, lang }) {
       <h1 className="page-title">{t('t_title_a')} <em>{t('t_title_b')}</em></h1>
       <p className="page-sub">{t('t_sub')}</p>
 
-      {/* Company selector chips */}
+      {/* Category tabs — big and prominent */}
       <div style={{
-        display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 32,
-        padding: 6,
-        background: 'var(--white)',
-        borderRadius: 10,
-        border: '1px solid var(--line)',
+        display: 'grid',
+        gridTemplateColumns: `repeat(${categories.length}, 1fr)`,
+        gap: 12,
+        marginBottom: 32,
       }}>
-        {groups.map(g => {
-          const isActive = g.companyId === activeId;
-          const count = g.sections.reduce((s, sec) => s + sec.videos.length, 0);
+        {categories.map(cat => {
+          const isActive = cat.id === activeCatId;
+          const count = (cat.groups || []).reduce((s, g) => s + (g.videos || []).length, 0);
           return (
-            <button key={g.companyId}
-                    onClick={() => setActiveId(g.companyId)}
+            <button key={cat.id}
+                    onClick={() => setActiveCatId(cat.id)}
                     style={{
-                      padding: '10px 14px', fontSize: 13, fontWeight: 600,
-                      border: 'none',
-                      background: isActive ? g.color : 'transparent',
-                      color: isActive ? 'white' : (g.pending ? 'var(--ink-mute)' : 'var(--ink)'),
-                      borderRadius: 6,
+                      padding: '18px 20px',
+                      border: '1.5px solid ' + (isActive ? cat.color : 'var(--line)'),
+                      background: isActive ? cat.color : 'var(--white)',
+                      color: isActive ? 'white' : 'var(--ink)',
+                      borderRadius: 12,
                       cursor: 'pointer',
-                      transition: 'all .12s',
-                      display: 'inline-flex', alignItems: 'center', gap: 8,
-                    }}>
-              {g.isTraining && !isActive && <I name="star" size={12} />}
-              {lang === 'en' && g.company_en ? g.company_en : g.company}
-              {count > 0 ? (
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  padding: '2px 6px', borderRadius: 3,
-                  background: isActive ? 'rgba(255,255,255,.22)' : 'var(--cream-warm)',
-                  color: isActive ? 'white' : g.color,
-                  letterSpacing: '0.04em',
-                }}>{count}</span>
-              ) : (
-                <span style={{
-                  fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
-                  color: isActive ? 'rgba(255,255,255,.7)' : 'var(--ink-mute)',
+                      transition: 'all .15s',
+                      display: 'flex', alignItems: 'center', gap: 14,
+                      textAlign: 'left',
+                      boxShadow: isActive ? 'var(--shadow-md)' : 'var(--shadow-sm)',
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.borderColor = cat.color; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.borderColor = 'var(--line)'; }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 10,
+                background: isActive ? 'rgba(255,255,255,.18)' : `${cat.color}18`,
+                color: isActive ? 'white' : cat.color,
+                display: 'grid', placeItems: 'center', flexShrink: 0,
+              }}>
+                <I name={cat.icon} size={22} stroke={1.7} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="serif" style={{
+                  fontSize: 18, lineHeight: 1.15, marginBottom: 2,
+                  color: isActive ? 'white' : 'var(--ink)',
                 }}>
-                  {lang === 'es' ? 'próximamente' : 'coming soon'}
-                </span>
-              )}
+                  {lang === 'es' ? cat.title_es : cat.title_en}
+                </div>
+                <div style={{
+                  fontSize: 11, letterSpacing: '0.06em',
+                  color: isActive ? 'rgba(255,255,255,.75)' : 'var(--ink-mute)',
+                }}>
+                  {count} {count === 1
+                    ? (lang === 'es' ? 'video' : 'video')
+                    : (lang === 'es' ? 'videos' : 'videos')}
+                </div>
+              </div>
             </button>
           );
         })}
       </div>
 
-      {/* Active company header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24,
-      }}>
+      {/* Active category header */}
+      <div style={{ marginBottom: 24 }}>
         <div style={{
-          width: 48, height: 48, borderRadius: 10,
-          background: active.color, color: 'white',
-          display: 'grid', placeItems: 'center',
+          fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase',
+          color: activeCat.color, fontWeight: 700, marginBottom: 6,
         }}>
-          <I name="play" size={22} stroke={0} style={{ fill: 'currentColor', marginLeft: 3 }} />
+          {lang === 'es' ? activeCat.title_es : activeCat.title_en}
+          {' · '}
+          <span style={{ color: 'var(--ink-mute)', letterSpacing: '0.06em', fontWeight: 500 }}>
+            {totalVideos} {totalVideos === 1
+              ? (lang === 'es' ? 'video' : 'video')
+              : (lang === 'es' ? 'videos' : 'videos')}
+          </span>
         </div>
-        <div>
-          <div className="serif" style={{ fontSize: 30, lineHeight: 1.1 }}>
-            {lang === 'en' && active.company_en ? active.company_en : active.company}
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--ink-mute)', marginTop: 2 }}>
-            {totalVideos > 0
-              ? (lang === 'es'
-                  ? `${totalVideos} ${totalVideos === 1 ? 'video disponible' : 'videos disponibles'}`
-                  : `${totalVideos} ${totalVideos === 1 ? 'video available' : 'videos available'}`)
-              : (lang === 'es' ? 'Tutoriales próximamente' : 'Tutorials coming soon')}
-          </div>
+        <div style={{ fontSize: 14, color: 'var(--ink-mute)', maxWidth: 640 }}>
+          {lang === 'es' ? activeCat.desc_es : activeCat.desc_en}
         </div>
       </div>
 
-      {/* Sections + videos */}
-      {sections.length === 0 && (
-        <PendingState lang={lang} carrier={active.company} />
-      )}
-
-      {sections.map((section, idx) => (
-        <div key={idx} style={{ marginBottom: 32 }}>
-          <SectionHeading label={lang === 'es' ? section.title_es : section.title_en}
-                          color={active.color} count={section.videos.length} />
+      {/* Groups (companies) with their videos */}
+      {(activeCat.groups || []).map((group, gIdx) => (
+        <div key={group.companyId + gIdx} style={{ marginBottom: 32 }}>
+          {!group.hideCompanyLabel && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14,
+            }}>
+              <div style={{ width: 4, height: 22, borderRadius: 2, background: group.color }} />
+              <div style={{
+                fontSize: 14, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                color: 'var(--ink)',
+              }}>
+                {group.company}
+              </div>
+              <div style={{
+                fontSize: 11, color: 'var(--ink-mute)', fontWeight: 500,
+                padding: '2px 8px', background: 'var(--cream-warm)', borderRadius: 4,
+              }}>
+                {group.videos.length}
+              </div>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-            {section.videos.map(v => (
-              <VideoCard key={v.id} v={v} lang={lang} color={active.color}
-                         onPlay={() => setPlaying({ ...v, company: active.company, color: active.color })} />
+            {group.videos.map(v => (
+              <VideoCard key={v.id} v={v} lang={lang} color={group.color}
+                         onPlay={() => setPlaying({ ...v, company: group.company, color: group.color })} />
             ))}
           </div>
         </div>
@@ -135,60 +162,10 @@ function Tutorials({ t, lang }) {
   );
 }
 
-function SectionHeading({ label, color, count }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      marginBottom: 14,
-    }}>
-      <div style={{
-        width: 4, height: 20, borderRadius: 2, background: color,
-      }} />
-      <div style={{
-        fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-        color: 'var(--ink)',
-      }}>
-        {label}
-      </div>
-      <div style={{
-        fontSize: 11, color: 'var(--ink-mute)', fontWeight: 500,
-        padding: '2px 8px', background: 'var(--cream-warm)', borderRadius: 4,
-      }}>
-        {count}
-      </div>
-    </div>
-  );
-}
-
-function PendingState({ lang, carrier }) {
-  return (
-    <div style={{
-      padding: '60px 40px', textAlign: 'center',
-      background: 'var(--white)',
-      border: '1px dashed var(--line)',
-      borderRadius: 16,
-      color: 'var(--ink-mute)',
-    }}>
-      <div style={{
-        width: 60, height: 60, borderRadius: 30,
-        background: 'var(--cream-warm)', color: 'var(--green-dark)',
-        margin: '0 auto 16px', display: 'grid', placeItems: 'center',
-      }}>
-        <I name="play" size={24} />
-      </div>
-      <div className="serif" style={{ fontSize: 22, marginBottom: 6, color: 'var(--ink)' }}>
-        {lang === 'es' ? 'Tutoriales de ' + carrier + ' próximamente' : carrier + ' tutorials coming soon'}
-      </div>
-      <div style={{ fontSize: 13, maxWidth: 400, margin: '0 auto' }}>
-        {lang === 'es'
-          ? 'Estamos grabando los videos. Mientras tanto, revisa la ficha de la compañía y usa el Matcher.'
-          : "We're recording the videos. Meanwhile, check the carrier profile and use the Matcher."}
-      </div>
-    </div>
-  );
-}
-
 function VideoCard({ v, lang, color, onPlay }) {
+  const thumb = ytThumbnail(v.url);
+  const isYT = isYouTube(v.url);
+
   return (
     <div onClick={onPlay}
          style={{
@@ -210,28 +187,36 @@ function VideoCard({ v, lang, color, onPlay }) {
            e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
            e.currentTarget.style.borderColor = 'var(--line)';
          }}>
-      {/* Thumbnail */}
+      {/* Thumbnail — real YouTube thumbnail if available */}
       <div style={{
         aspectRatio: '16 / 9',
-        background: `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)`,
+        background: thumb ? `#000 url(${thumb}) center/cover` : `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)`,
         position: 'relative', display: 'grid', placeItems: 'center',
         overflow: 'hidden',
       }}>
-        {/* subtle diagonal pattern */}
-        <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: .13 }}>
-          <defs>
-            <pattern id={`p-${v.id}`} width="24" height="24" patternUnits="userSpaceOnUse">
-              <line x1="0" y1="24" x2="24" y2="0" stroke="white" strokeWidth="0.6" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill={`url(#p-${v.id})`} />
-        </svg>
+        {!thumb && (
+          <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: .13 }}>
+            <defs>
+              <pattern id={`p-${v.id}`} width="24" height="24" patternUnits="userSpaceOnUse">
+                <line x1="0" y1="24" x2="24" y2="0" stroke="white" strokeWidth="0.6" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill={`url(#p-${v.id})`} />
+          </svg>
+        )}
+        {/* dark overlay so play button pops on YT thumbnails */}
+        {thumb && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(180deg, rgba(0,0,0,.15), rgba(0,0,0,.45))',
+          }} />
+        )}
 
         <div style={{
           width: 56, height: 56, borderRadius: 28,
           background: 'rgba(255,255,255,.95)', color: color,
           display: 'grid', placeItems: 'center',
-          boxShadow: '0 4px 20px rgba(0,0,0,.25)',
+          boxShadow: '0 4px 20px rgba(0,0,0,.35)',
           zIndex: 1,
         }}>
           <I name="play" size={22} stroke={0} style={{ fill: 'currentColor', marginLeft: 3 }} />
@@ -239,15 +224,15 @@ function VideoCard({ v, lang, color, onPlay }) {
 
         <div style={{
           position: 'absolute', top: 10, left: 10,
-          background: 'rgba(0,0,0,.35)', color: 'white',
+          background: 'rgba(0,0,0,.55)', color: 'white',
           padding: '3px 8px', borderRadius: 4,
           fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+          zIndex: 1,
         }}>
-          HD
+          {isYT ? 'YouTube' : 'Video'}
         </div>
       </div>
 
-      {/* Info */}
       <div style={{ padding: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.35 }}>
           {lang === 'es' ? v.title_es : v.title_en}
@@ -287,7 +272,6 @@ function VideoModal({ v, lang, onClose }) {
             style={{ width: '100%', height: '100%', border: 'none' }}
           />
 
-          {/* Close button on top-right */}
           <button onClick={onClose} style={{
             position: 'absolute', top: 14, right: 14,
             width: 36, height: 36, borderRadius: 18,
