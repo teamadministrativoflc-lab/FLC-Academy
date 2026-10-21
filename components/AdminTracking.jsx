@@ -1,6 +1,30 @@
 function AdminTracking({setPage}) {
  const [rows,setRows]=React.useState([]),[loading,setLoading]=React.useState(true),[error,setError]=React.useState('');
  const [search,setSearch]=React.useState('');
+ const [inviteName,setInviteName]=React.useState('');
+ const [inviteEmail,setInviteEmail]=React.useState('');
+ const [inviting,setInviting]=React.useState(false);
+ const [inviteFeedback,setInviteFeedback]=React.useState('');
+ const [inviteSuccess,setInviteSuccess]=React.useState(false);
+ const invite=async(e)=>{
+  e.preventDefault();
+  if(inviting)return;
+  setInviteFeedback('');setInviteSuccess(false);setInviting(true);
+  try{
+   const {data,error}=await window.flcSupabase.functions.invoke('flc-invite-agent',{
+    body:{full_name:inviteName.trim(),email:inviteEmail.trim().toLowerCase()}
+   });
+   if(error||!data?.success)throw new Error(data?.error||'invite_failed');
+   setInviteSuccess(true);
+   setInviteFeedback('Invitación enviada. El agente recibirá un correo para activar su cuenta.');
+   setInviteName('');setInviteEmail('');
+   await load();
+  }catch(err){
+   setInviteSuccess(false);
+   setInviteFeedback('No se pudo enviar la invitación. Comprueba que el correo sea nuevo y revisa los registros de la función en Supabase.');
+   console.error('FLC invitation failed:',err);
+  }finally{setInviting(false);}
+ };
  const moduleIds=['m1','m2','m3'];
  const progressOf=a=>Math.round(moduleIds.reduce((sum,id)=>sum+Number(a.modules[id]??0),0)/moduleIds.length);
  const load=async()=>{
@@ -48,6 +72,22 @@ function AdminTracking({setPage}) {
      <div style={{fontSize:26,fontWeight:700,marginTop:6}}>{value}</div>
     </div>)}
    </div>
+   <section style={{margin:'4px 0 24px',padding:18,border:'1px solid #dce5d8',borderRadius:10,background:'#fff',maxWidth:700}}>
+    <h2 style={{fontSize:19,margin:'0 0 8px'}}>Invitar nuevo agente</h2>
+    <p style={{fontSize:13,color:'#536454',margin:'0 0 16px'}}>Envía un correo de activación a la academia de prueba. Solo Administración puede enviar invitaciones.</p>
+    <form onSubmit={invite}>
+     <div style={{display:'flex',flexWrap:'wrap',gap:12}}>
+      <label style={{flex:'1 1 220px'}}>Nombre completo
+       <input type="text" required minLength={2} maxLength={120} value={inviteName} onChange={e=>setInviteName(e.target.value)} placeholder="Nombre del agente" style={{display:'block',width:'100%',padding:10,marginTop:6,border:'1px solid #ccd5c8',borderRadius:6}}/>
+      </label>
+      <label style={{flex:'1 1 220px'}}>Correo electrónico
+       <input type="email" required maxLength={254} autoComplete="off" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="agente@correo.com" style={{display:'block',width:'100%',padding:10,marginTop:6,border:'1px solid #ccd5c8',borderRadius:6}}/>
+      </label>
+     </div>
+     <button type="submit" disabled={inviting} style={{background:'#143a1e',color:'#fff',borderRadius:7,padding:'12px 18px',marginTop:14,opacity:inviting?.65:1}}>{inviting?'Enviando…':'Enviar invitación'}</button>
+     {inviteFeedback&&<p role="status" style={{color:inviteSuccess?'#2d6534':'#a33',marginBottom:0}}>{inviteFeedback}</p>}
+    </form>
+   </section>
    <label htmlFor="flc-agent-search" style={{display:'block',marginBottom:6}}>Buscar agente</label>
    <input id="flc-agent-search" type="search" placeholder="Nombre del agente" value={search} onChange={e=>setSearch(e.target.value)} style={{padding:10,border:'1px solid #ccd5c8',borderRadius:6,width:'100%',maxWidth:340}}/>
    <div style={{overflowX:'auto',marginTop:16}}><table style={{borderCollapse:'collapse',width:'100%',background:'white'}}>
