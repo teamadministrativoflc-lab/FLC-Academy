@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prueba de acceso · FLC Academy</title><style>
+body{font-family:system-ui,sans-serif;background:#f6f7f2;color:#101910;min-height:100vh;display:grid;place-items:center;margin:0;padding:16px}
+main{box-sizing:border-box;width:min(100%,440px);background:white;border:1px solid #dfe5d9;border-radius:14px;padding:30px}
+h1{margin-top:0}label{display:block;margin-top:14px}input,button{box-sizing:border-box;width:100%;padding:12px;font:inherit;border-radius:7px}
+input{border:1px solid #b7c0b2}button{border:0;background:#17371b;color:white;margin-top:20px;cursor:pointer}
+button:disabled{opacity:.5}#result{margin-top:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+</style></head><body><main><h1>Prueba de acceso</h1><p>FLC Academy · Entorno de prueba</p>
+<form id="form"><label>Correo</label><input id="email" type="email" autocomplete="username" required>
+<label>Contraseña</label><input id="password" type="password" autocomplete="current-password" required>
+<button id="submit" type="submit">Probar inicio de sesión</button></form><p id="result" role="status"></p>
+<button id="logout" type="button" hidden>Cerrar sesión de prueba</button></main>
+<script type="module">
+import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
+const sb=createClient('https://fvhbzutxaoujtnnjzhlk.supabase.co','sb_publishable_rAio9qIcW3ecuM4qxiUZ_A_Z8iuZhFE');
+const form=document.querySelector('#form'),result=document.querySelector('#result'),button=document.querySelector('#submit'),logout=document.querySelector('#logout');
+await sb.auth.signOut(); // Force an explicit fresh test.
+form.addEventListener('submit',async e=>{
+e.preventDefault();button.disabled=true;result.textContent='Verificando acceso…';
+const {data,error}=await sb.auth.signInWithPassword({email:document.querySelector('#email').value.trim(),password:document.querySelector('#password').value});
+document.querySelector('#password').value='';
+if(error){result.textContent='No se pudo iniciar sesión. Verifica tu correo y contraseña.';button.disabled=false;return;}
+const {data:profile,error:profileError}=await sb.from('agent_profiles').select('role,full_name').eq('id',data.user.id).single();
+if(profileError||!profile){result.textContent='Inicio de sesión correcto. No fue posible verificar el perfil: revisaremos las políticas RLS.';}
+else {result.textContent='Inicio de sesión correcto. Perfil: '+profile.role+'.';}
+form.hidden=true;logout.hidden=false;button.disabled=false;
+});
+logout.addEventListener('click',async()=>{await sb.auth.signOut();form.hidden=false;logout.hidden=true;result.textContent='Sesión cerrada.';});
+</script></body></html>
