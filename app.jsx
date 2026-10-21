@@ -18,6 +18,7 @@ function App() {
   }, []);
   const [page, setPage] = React.useState(() => localStorage.getItem('flc_page') || 'dashboard');
   const [progress, setProgress] = React.useState({});
+  const [progressLoaded, setProgressLoaded] = React.useState(false);
   const [selectedCompany, setSelectedCompany] = React.useState(null);
   const [showWelcome, setShowWelcome] = React.useState(false);
 
@@ -36,16 +37,49 @@ function App() {
   // Supabase Auth session replaces localStorage flc_user credentials.
   React.useEffect(() => { localStorage.setItem('flc_page', page); }, [page]);
   React.useEffect(() => {
-    if (!user?.id) { setProgress({}); return; }
-    try { setProgress(JSON.parse(localStorage.getItem('flc_progress_'+user.id)||'{}')); }
-    catch { setProgress({}); }
-  }, [user?.id]);
-  React.useEffect(() => {
-    if(user?.id) localStorage.setItem('flc_progress_'+user.id,JSON.stringify(progress));
-  }, [progress,user?.id]);
+    let current=true;
+    setProgressLoaded(false);
+    setProgress({});
+    if (!user?.id) return;
+    (async ()=>{
+      const {data,error}=await window.flcSupabase.from('module_progress').select('module_id,progress_percent').eq('agent_id',user.id);
+      if (!current) return;
+      if(error){console.error('Unable to load module progress',error);setProgressLoaded(false);return;}
+      const loaded=Object.fromEntries(data.map(x=>[x.module_id,x.progress_percent]));
+      setProgress(loaded);
+      setProgressLoaded(true);
+    })();
+    return ()=>{current=false;};
+  },[user?.id]);
+
+  const previousProgress=React.useRef({});
+  React.useEffect(()=>{
+    if(!user?.id||!progressLoaded) return;
+    const previous=previousProgress.current;
+    for(const [id,value] of Object.entries(progress)) {
+      if(previous[id]!==value && ['m1','m2','m3'].includes(id)) {
+        window.flcSupabase.rpc('flc_set_module_progress',{p_module_id:id,p_progress:value}).then(({error})=>{
+          if(error)console.error('Unable to persist module progress',error);
+        });
+      }
+    }
+    previousProgress.current={...progress};
+  },[progress,user?.id,progressLoaded]);
+
+  React.useEffect(()=>{
+    if(!user?.id) return;
+    const marker='flc_login_logged_'+user.id;
+    // Once per browser tab session; server timestamps are authoritative.
+    if(sessionStorage.getItem(marker)) return;
+    window.flcSupabase.rpc('flc_log_login').then(({error})=>{
+      if(error) console.error('Unable to log sign-in',error);
+      else sessionStorage.setItem(marker,'1');
+    });
+  },[user?.id]);
 
   if (!authReady) return <p style={{padding:32}}>Verificando sesión…</p>;
   if (!user) return <SupabaseLogin onLogin={setUser} lang={lang} setLang={setLang} />;
+  if (!progressLoaded) return <p style={{padding:32}}>Cargando progreso de formación…</p>;
 
   const pages = {
     dashboard: <Dashboard user={user} setPage={setPage} progress={progress} t={t} lang={lang} />,
@@ -58,7 +92,7 @@ function App() {
 
   return (
     <div className="app">
-      <Sidebar page={page} setPage={setPage} user={user} onLogout={async () => {await window.flcSupabase.auth.signOut();setUser(null);}} t={t} lang={lang} />
+      <Sidebar page={page} setPage={setPage} user={user} onLogout={async () => {sessionStorage.removeItem('flc_login_logged_'+user.id);await window.flcSupabase.auth.signOut();setUser(null);}} t={t} lang={lang} />
       <div className="main">
         <div className="topbar">
           <div />
