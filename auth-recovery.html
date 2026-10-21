@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recuperar acceso · FLC Academy</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#f6f7f2;color:#0a0f0a;min-height:100vh;display:grid;place-items:center;margin:0;padding:16px}
+main{background:#fff;border:1px solid #e2e7dc;border-radius:16px;padding:32px;width:min(100%,420px);box-shadow:0 8px 24px #14201a12}
+h1{margin:0 0 8px;font-size:25px}p{line-height:1.5;color:#475247}label{display:block;margin:16px 0 5px}
+input,button{box-sizing:border-box;width:100%;padding:13px;border-radius:8px;font:inherit}
+input{border:1px solid #b6c1b1}button{border:0;background:#123519;color:#fff;font-weight:600;cursor:pointer;margin-top:20px}button:disabled{opacity:.6;cursor:wait}
+</style></head><body><main><h1>Recuperar acceso</h1><p>Future Legacy Creators Academy</p>
+<p>Introduce el correo de tu cuenta para recibir un enlace y establecer una contraseña.</p>
+<form id="form"><label for="email">Correo electrónico</label><input type="email" id="email" autocomplete="email" required>
+<button id="send" type="submit">Enviar enlace</button></form><p id="status" role="status"></p></main>
+<script type="module">
+import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
+const supabase=createClient('https://fvhbzutxaoujtnnjzhlk.supabase.co','sb_publishable_rAio9qIcW3ecuM4qxiUZ_A_Z8iuZhFE');
+const form=document.querySelector('#form'),status=document.querySelector('#status'),send=document.querySelector('#send');
+form.addEventListener('submit',async e=>{
+e.preventDefault();send.disabled=true;status.textContent='Enviando…';
+try {
+ const redirectTo=new URL('./auth-setup.html',location.href).href;
+ const {error}=await supabase.auth.resetPasswordForEmail(document.querySelector('#email').value.trim(),{redirectTo});
+ if(error)throw error;
+ status.textContent='Si el correo está registrado, recibirás instrucciones para crear una contraseña. Revisa también Spam.';
+ form.style.display='none';
+} catch(err) {status.textContent='No se pudo enviar el mensaje. Comprueba la configuración del correo y vuelve a intentarlo.';send.disabled=false;}
+});
+</script></body></html>
