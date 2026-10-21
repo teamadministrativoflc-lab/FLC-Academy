@@ -84,6 +84,7 @@ function App() {
   if (!progressLoaded) return <p style={{padding:32}}>Cargando progreso de formación…</p>;
 
   const pages = {
+    admin: user.role === 'admin' ? <AdminTracking setPage={setPage} /> : null,
     dashboard: <Dashboard user={user} setPage={setPage} progress={progress} t={t} lang={lang} />,
     matcher: <Matcher t={t} lang={lang} setPage={setPage} setSelectedCompany={setSelectedCompany} />,
     companies: <Companies t={t} lang={lang} setPage={setPage} selectedCompany={selectedCompany} setSelectedCompany={setSelectedCompany} />,
@@ -105,6 +106,7 @@ function App() {
             </div>
           </div>
         </div>
+        {user.role === "admin" && <div style={{padding:"4px 28px"}}><button onClick={() => setPage("admin")} style={{padding:"9px 16px",border:"1px solid #8da588",borderRadius:7,background:"#eef4ea",cursor:"pointer"}}>📊 Seguimiento de agentes</button></div>}
         {pages[page] || pages.dashboard}
       </div>
 
