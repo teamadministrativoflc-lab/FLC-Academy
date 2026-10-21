@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Activar cuenta · FLC Academy</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#f6f7f2;color:#0a0f0a;min-height:100vh;display:grid;place-items:center;margin:0;padding:16px}
+main{background:white;border:1px solid #e2e7dc;border-radius:16px;padding:32px;width:min(100%,420px);box-shadow:0 8px 24px #14201a12}
+h1{margin:0 0 8px;font-size:25px}p{line-height:1.5;color:#475247}label{display:block;margin:16px 0 5px}
+input,button{box-sizing:border-box;width:100%;padding:13px;border-radius:8px;font:inherit}
+input{border:1px solid #b6c1b1}button{border:0;background:#123519;color:white;font-weight:600;cursor:pointer;margin-top:20px}
+button:disabled{opacity:.6;cursor:wait}#status{min-height:24px}#form{display:none}
+</style>
+</head>
+<body><main>
+<h1>Activa tu cuenta</h1>
+<p>Future Legacy Creators Academy</p>
+<p id="status" role="status">Verificando el enlace seguro…</p>
+<form id="form">
+<label for="password">Nueva contraseña</label><input id="password" type="password" autocomplete="new-password" minlength="12" required>
+<label for="confirm">Confirma la contraseña</label><input id="confirm" type="password" autocomplete="new-password" minlength="12" required>
+<button id="submit" type="submit">Guardar contraseña</button>
+</form>
+</main>
+<script type="module">
+import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
+const url='https://fvhbzutxaoujtnnjzhlk.supabase.co';
+const key='sb_publishable_rAio9qIcW3ecuM4qxiUZ_A_Z8iuZhFE';
+const supabase=createClient(url,key,{auth:{detectSessionInUrl:true,persistSession:true,autoRefreshToken:true}});
+const status=document.querySelector('#status'),form=document.querySelector('#form'),button=document.querySelector('#submit');
+const say=(message)=>{status.textContent=message};
+try {
+  const params=new URLSearchParams(location.search);
+  const hash=new URLSearchParams(location.hash.slice(1));
+  if(params.get('error')||hash.get('error')){
+    say('El enlace no es válido o ha vencido. Solicita una nueva invitación a la agencia.');
+  } else {
+    if(params.has('code')){
+      const {error}=await supabase.auth.exchangeCodeForSession(params.get('code'));
+      if(error)throw error;
+    }
+    const {data:{session},error}=await supabase.auth.getSession();
+    if(error)throw error;
+    if(!session) say('No encontramos una sesión válida. Solicita a la agencia una nueva invitación.');
+    else {say('Enlace verificado. Elige una contraseña de al menos 12 caracteres.');form.style.display='block';history.replaceState(null,'',location.pathname);}
+  }
+}catch(e){console.error('Activation failed');say('No pudimos validar el enlace. Solicita una nueva invitación a la agencia.')}
+form.addEventListener('submit',async(e)=>{
+  e.preventDefault();
+  const pass=document.querySelector('#password').value;
+  if(pass!==document.querySelector('#confirm').value){say('Las contraseñas no coinciden.');return;}
+  if(pass.length<12){say('La contraseña debe tener al menos 12 caracteres.');return;}
+  button.disabled=true;say('Guardando…');
+  const {error}=await supabase.auth.updateUser({password:pass});
+  button.disabled=false;
+  if(error){say('No se pudo guardar la contraseña. Solicita ayuda a la agencia.');return;}
+  form.style.display='none';
+  await supabase.auth.signOut();
+  say('Contraseña creada correctamente. La agencia te avisará cuando el nuevo inicio de sesión esté habilitado.');
+});
+</script></body></html>
