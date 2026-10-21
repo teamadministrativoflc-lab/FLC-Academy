@@ -39,6 +39,7 @@ function App() {
   React.useEffect(() => {
     let current=true;
     setProgressLoaded(false);
+    previousProgress.current={};
     setProgress({});
     if (!user?.id) return;
     (async ()=>{
@@ -46,6 +47,7 @@ function App() {
       if (!current) return;
       if(error){console.error('Unable to load module progress',error);setProgressLoaded(false);return;}
       const loaded=Object.fromEntries(data.map(x=>[x.module_id,x.progress_percent]));
+      previousProgress.current=loaded;
       setProgress(loaded);
       setProgressLoaded(true);
     })();
