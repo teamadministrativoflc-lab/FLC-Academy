@@ -17,9 +17,7 @@ function App() {
     return ()=>{mounted=false;subscription.unsubscribe();};
   }, []);
   const [page, setPage] = React.useState(() => localStorage.getItem('flc_page') || 'dashboard');
-  const [progress, setProgress] = React.useState(() => {
-    try { return JSON.parse(localStorage.getItem('flc_progress') || '{}'); } catch { return {}; }
-  });
+  const [progress, setProgress] = React.useState({});
   const [selectedCompany, setSelectedCompany] = React.useState(null);
   const [showWelcome, setShowWelcome] = React.useState(false);
 
@@ -37,7 +35,14 @@ function App() {
   React.useEffect(() => { localStorage.setItem('flc_lang', lang); }, [lang]);
   // Supabase Auth session replaces localStorage flc_user credentials.
   React.useEffect(() => { localStorage.setItem('flc_page', page); }, [page]);
-  React.useEffect(() => { localStorage.setItem('flc_progress', JSON.stringify(progress)); }, [progress]);
+  React.useEffect(() => {
+    if (!user?.id) { setProgress({}); return; }
+    try { setProgress(JSON.parse(localStorage.getItem('flc_progress_'+user.id)||'{}')); }
+    catch { setProgress({}); }
+  }, [user?.id]);
+  React.useEffect(() => {
+    if(user?.id) localStorage.setItem('flc_progress_'+user.id,JSON.stringify(progress));
+  }, [progress,user?.id]);
 
   if (!authReady) return <p style={{padding:32}}>Verificando sesión…</p>;
   if (!user) return <SupabaseLogin onLogin={setUser} lang={lang} setLang={setLang} />;
