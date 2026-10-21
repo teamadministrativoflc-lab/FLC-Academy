@@ -1,8 +1,21 @@
 function App() {
   const [lang, setLang] = React.useState(() => localStorage.getItem('flc_lang') || 'es');
-  const [user, setUser] = React.useState(() => {
-    try { return JSON.parse(localStorage.getItem('flc_user') || 'null'); } catch { return null; }
-  });
+  const [user, setUser] = React.useState(null);
+  const [authReady, setAuthReady] = React.useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    async function load(session) {
+      if (!session) { if (mounted) { setUser(null); setAuthReady(true); } return; }
+      const {data:profile,error} = await window.flcSupabase.from('agent_profiles').select('full_name,role').eq('id',session.user.id).single();
+      if (mounted) { setUser(!error && profile ? {id:session.user.id,email:session.user.email,name:profile.full_name,role:profile.role}:null);setAuthReady(true); }
+    }
+    window.flcSupabase.auth.getSession().then(({data})=>load(data.session));
+    const {data:{subscription}}=window.flcSupabase.auth.onAuthStateChange((_event,session)=>{
+      // Deferred read to avoid calling Supabase methods inside auth callback synchronization.
+      Promise.resolve().then(()=>load(session));
+    });
+    return ()=>{mounted=false;subscription.unsubscribe();};
+  }, []);
   const [page, setPage] = React.useState(() => localStorage.getItem('flc_page') || 'dashboard');
   const [progress, setProgress] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('flc_progress') || '{}'); } catch { return {}; }
@@ -22,16 +35,12 @@ function App() {
   }, [user]);
 
   React.useEffect(() => { localStorage.setItem('flc_lang', lang); }, [lang]);
-  React.useEffect(() => {
-    if (user) localStorage.setItem('flc_user', JSON.stringify(user));
-    else localStorage.removeItem('flc_user');
-  }, [user]);
+  // Supabase Auth session replaces localStorage flc_user credentials.
   React.useEffect(() => { localStorage.setItem('flc_page', page); }, [page]);
   React.useEffect(() => { localStorage.setItem('flc_progress', JSON.stringify(progress)); }, [progress]);
 
-  if (!user) {
-    return <Login onLogin={setUser} t={t} lang={lang} setLang={setLang} />;
-  }
+  if (!authReady) return <p style={{padding:32}}>Verificando sesión…</p>;
+  if (!user) return <SupabaseLogin onLogin={setUser} lang={lang} setLang={setLang} />;
 
   const pages = {
     dashboard: <Dashboard user={user} setPage={setPage} progress={progress} t={t} lang={lang} />,
@@ -44,7 +53,7 @@ function App() {
 
   return (
     <div className="app">
-      <Sidebar page={page} setPage={setPage} user={user} onLogout={() => setUser(null)} t={t} lang={lang} />
+      <Sidebar page={page} setPage={setPage} user={user} onLogout={async () => {await window.flcSupabase.auth.signOut();setUser(null);}} t={t} lang={lang} />
       <div className="main">
         <div className="topbar">
           <div />
