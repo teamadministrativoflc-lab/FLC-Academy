@@ -23,8 +23,7 @@ begin
  if not exists (select 1 from public.agent_profiles where id=(select auth.uid())) then
   raise exception 'missing agent profile';
  end if;
- if p_module_id is null or p_module_id not in ('life_basics','sales_script','objections') then
-  -- Update the allowlist below to IDs from data/agency_config.js before executing.
+ if p_module_id is null or p_module_id not in ('m1','m2','m3') then
   raise exception 'unrecognized module';
  end if;
  if p_progress not in (0,50,100) then raise exception 'invalid progress'; end if;
