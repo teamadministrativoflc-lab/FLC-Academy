@@ -30,15 +30,19 @@ function AdminTracking({setPage}) {
  const load=async()=>{
   setLoading(true);setError('');
   try{
-   const [p,l,m]=await Promise.all([
+   const [p,l,m,q,c]=await Promise.all([
     window.flcSupabase.from('agent_profiles').select('id,full_name,role'),
     window.flcSupabase.from('login_activity').select('agent_id,logged_in_at').order('logged_in_at',{ascending:false}),
-    window.flcSupabase.from('module_progress').select('agent_id,module_id,progress_percent')
+    window.flcSupabase.from('module_progress').select('agent_id,module_id,progress_percent'),
+    window.flcSupabase.from('quiz_attempts').select('agent_id,score_percent,passed,attempted_at'),
+    window.flcSupabase.from('certificates').select('agent_id,certificate_code,issued_at')
    ]);
-   if(p.error||l.error||m.error)throw new Error('read failed');
+   if(p.error||l.error||m.error||q.error||c.error)throw new Error('read failed');
    const last={};for(const a of l.data||[]){if(!last[a.agent_id])last[a.agent_id]=a.logged_in_at;}
    const prog={};for(const a of m.data||[]){(prog[a.agent_id]??={})[a.module_id]=a.progress_percent;}
-   setRows((p.data||[]).map(a=>({...a,last:last[a.id],modules:prog[a.id]||{}})).sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||'')));
+   const quizzes={};for(const a of q.data||[]){const v=quizzes[a.agent_id]??={attempts:0,best:0,passed:false};v.attempts++;v.best=Math.max(v.best,Number(a.score_percent));v.passed=v.passed||a.passed;}
+   const certs={};for(const a of c.data||[]){if(!certs[a.agent_id])certs[a.agent_id]=a;}
+   setRows((p.data||[]).map(a=>({...a,last:last[a.id],modules:prog[a.id]||{},quiz:quizzes[a.id],certificate:certs[a.id]})).sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||'')));
   }catch(e){setError('No se pudieron cargar los registros. Verifica los permisos RLS.');}
   finally{setLoading(false);}
  };
@@ -74,7 +78,7 @@ function AdminTracking({setPage}) {
    </div>
    <section style={{margin:'4px 0 24px',padding:18,border:'1px solid #dce5d8',borderRadius:10,background:'#fff',maxWidth:700}}>
     <h2 style={{fontSize:19,margin:'0 0 8px'}}>Invitar nuevo agente</h2>
-    <p style={{fontSize:13,color:'#536454',margin:'0 0 16px'}}>Envía un correo de activación a la academia de prueba. Solo Administración puede enviar invitaciones.</p>
+    <p style={{fontSize:13,color:'#536454',margin:'0 0 16px'}}>Envía un correo de activación a FLC Academy. Solo Administración puede enviar invitaciones.</p>
     <form onSubmit={invite}>
      <div style={{display:'flex',flexWrap:'wrap',gap:12}}>
       <label style={{flex:'1 1 220px'}}>Nombre completo
@@ -91,8 +95,8 @@ function AdminTracking({setPage}) {
    <label htmlFor="flc-agent-search" style={{display:'block',marginBottom:6}}>Buscar agente</label>
    <input id="flc-agent-search" type="search" placeholder="Nombre del agente" value={search} onChange={e=>setSearch(e.target.value)} style={{padding:10,border:'1px solid #ccd5c8',borderRadius:6,width:'100%',maxWidth:340}}/>
    <div style={{overflowX:'auto',marginTop:16}}><table style={{borderCollapse:'collapse',width:'100%',background:'white'}}>
-    <thead><tr>{['Agente','Rol','Último ingreso','Progreso total','Módulo 1','Módulo 2','Módulo 3'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd',whiteSpace:'nowrap'}}>{x}</th>)}</tr></thead>
-    <tbody>{filtered.map(a=><tr key={a.id}><td style={cell}>{a.full_name}</td><td style={cell}>{a.role}</td><td style={cell}>{date(a.last)}</td><td style={{...cell,fontWeight:700}}>{progressOf(a)}%</td>{moduleIds.map(id=><td key={id} style={cell}>{a.modules[id]??0}%</td>)}</tr>)}</tbody>
+    <thead><tr>{['Agente','Rol','Último ingreso','Progreso total','Módulo 1','Módulo 2','Módulo 3','Intentos','Mejor nota','Examen','Certificado'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd',whiteSpace:'nowrap'}}>{x}</th>)}</tr></thead>
+    <tbody>{filtered.map(a=><tr key={a.id}><td style={cell}>{a.full_name}</td><td style={cell}>{a.role}</td><td style={cell}>{date(a.last)}</td><td style={{...cell,fontWeight:700}}>{progressOf(a)}%</td>{moduleIds.map(id=><td key={id} style={cell}>{a.modules[id]??0}%</td>)}<td style={cell}>{a.quiz?.attempts??0}/3</td><td style={cell}>{a.quiz?.attempts?a.quiz.best+'%':'—'}</td><td style={cell}>{a.quiz?.passed?'Aprobado':a.quiz?.attempts?'Pendiente':'Sin presentar'}</td><td style={cell}>{a.certificate?.certificate_code||'—'}</td></tr>)}</tbody>
    </table>{filtered.length===0&&<p>{rows.length===0?'Todavía no hay agentes registrados.':'No hay agentes que coincidan con la búsqueda.'}</p>}</div>
   </React.Fragment>}
   <p style={{fontSize:12,color:'#59655b',marginTop:20}}>El progreso total es el promedio de los tres módulos. Las métricas generales excluyen cuentas administrativas. Los registros anteriores al nuevo sistema no se recuperan automáticamente.</p>
