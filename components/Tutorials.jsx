@@ -23,7 +23,7 @@ function ytThumbnail(url) {
   return m ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : null;
 }
 
-function Tutorials({ t, lang }) {
+function Tutorials({ t, lang, user }) {
   const categories = window.TUTORIAL_CATEGORIES || [];
   if (!categories.length) return <div style={{ padding: 40 }}>No tutorials loaded.</div>;
 
@@ -35,6 +35,35 @@ function Tutorials({ t, lang }) {
     return categories[0].id;
   });
   const [playing, setPlaying] = React.useState(null);
+  const [completed, setCompleted] = React.useState({});
+  const [trackingError, setTrackingError] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  React.useEffect(() => {
+    let active = true;
+    setCompleted({});setTrackingError('');
+    if (!user?.id || !window.flcSupabase) return;
+    window.flcSupabase.from('tutorial_completions').select('tutorial_id,completed_at')
+      .eq('agent_id',user.id).then(({data,error}) => {
+        if(!active) return;
+        if(error){setTrackingError('El registro de tutoriales aún no está disponible.');return;}
+        setCompleted(Object.fromEntries((data||[]).map(r=>[r.tutorial_id,r.completed_at])));
+      });
+    return () => {active=false;};
+  },[user?.id]);
+  const markComplete = async (v) => {
+    if(!user?.id || saving || completed[v.id])return;
+    setSaving(true);setTrackingError('');
+    try {
+      const {data:{user:sessionUser},error:authError}=await window.flcSupabase.auth.getUser();
+      if(authError||sessionUser?.id!==user.id) throw Error('Acceso no válido');
+      const {data,error}=await window.flcSupabase.from('tutorial_completions')
+        .insert({agent_id:user.id,tutorial_id:v.id})
+        .select('completed_at').single();
+      if(error)throw error;
+      setCompleted(old=>({...old,[v.id]:data.completed_at}));
+    } catch(e){setTrackingError('No se pudo guardar el tutorial. Contacta a Administración.');}
+    finally{setSaving(false);}
+  };
 
   React.useEffect(() => {
     localStorage.setItem('flc_tutorial_cat', activeCatId);
@@ -50,6 +79,8 @@ function Tutorials({ t, lang }) {
       <div className="breadcrumb">{t('nav_learn')} · <span>{t('nav_tutorials')}</span></div>
       <h1 className="page-title">{t('t_title_a')} <em>{t('t_title_b')}</em></h1>
       <p className="page-sub">{t('t_sub')}</p>
+      <p style={{marginBottom:20,fontWeight:600}}>✓ {Object.keys(completed).length} {lang==='es'?'tutoriales completados (confirmados por el agente)':'tutorials completed (agent-confirmed)'}</p>
+      {trackingError&&<p role="alert" style={{color:'#aa3322'}}>{trackingError}</p>}
 
       {/* Category tabs — big and prominent */}
       <div style={{
@@ -150,19 +181,19 @@ function Tutorials({ t, lang }) {
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {group.videos.map(v => (
-              <VideoCard key={v.id} v={v} lang={lang} color={group.color}
+              <VideoCard key={v.id} v={v} lang={lang} color={group.color} completed={!!completed[v.id]}
                          onPlay={() => setPlaying({ ...v, company: group.company, color: group.color })} />
             ))}
           </div>
         </div>
       ))}
 
-      {playing && <VideoModal v={playing} lang={lang} onClose={() => setPlaying(null)} />}
+      {playing && <VideoModal v={playing} lang={lang} completed={!!completed[playing.id]} saving={saving} onComplete={() => markComplete(playing)} onClose={() => setPlaying(null)} />}
     </div>
   );
 }
 
-function VideoCard({ v, lang, color, onPlay }) {
+function VideoCard({ v, lang, color, onPlay, completed }) {
   const thumb = ytThumbnail(v.url);
   const isYT = isYouTube(v.url);
 
@@ -237,12 +268,13 @@ function VideoCard({ v, lang, color, onPlay }) {
         <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.35 }}>
           {lang === 'es' ? v.title_es : v.title_en}
         </div>
+        {completed && <div style={{color:'#23783a',fontSize:12,marginTop:8,fontWeight:700}}>✓ {lang==='es'?'Completado':'Completed'}</div>}
       </div>
     </div>
   );
 }
 
-function VideoModal({ v, lang, onClose }) {
+function VideoModal({ v, lang, onClose, completed, saving, onComplete }) {
   const embedUrl = toEmbedUrl(v.url);
 
   return (
@@ -286,6 +318,13 @@ function VideoModal({ v, lang, onClose }) {
           </button>
         </div>
 
+        <div style={{background:'var(--white)',padding:'12px 28px',borderBottom:'1px solid var(--line)'}}>
+          <button onClick={onComplete} disabled={completed||saving}
+            style={{border:0,borderRadius:8,padding:'11px 16px',background:completed?'#e6f2e8':'#194d2a',color:completed?'#27613d':'white',fontWeight:700,cursor:completed?'default':'pointer'}}>
+            {completed?'✓ '+(lang==='es'?'Completado':'Completed'):saving?(lang==='es'?'Guardando…':'Saving…'):(lang==='es'?'Marcar como completado':'Mark as completed')}
+          </button>
+          <div style={{fontSize:12,color:'#647063',marginTop:6}}>{lang==='es'?'Confirma después de ver el video. No se verifica automáticamente la reproducción completa.':'Confirm after watching. Full playback is not automatically verified.'}</div>
+        </div>
         {/* Info bar */}
         <div style={{
           padding: '20px 28px',
