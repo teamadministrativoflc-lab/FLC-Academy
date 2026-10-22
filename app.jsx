@@ -89,7 +89,7 @@ function App() {
     matcher: <Matcher t={t} lang={lang} setPage={setPage} setSelectedCompany={setSelectedCompany} />,
     companies: <Companies t={t} lang={lang} setPage={setPage} selectedCompany={selectedCompany} setSelectedCompany={setSelectedCompany} />,
     resources: <Resources t={t} lang={lang} />,
-    tutorials: <Tutorials t={t} lang={lang} />,
+    tutorials: <Tutorials t={t} lang={lang} user={user} />,
     progress: <Progress t={t} lang={lang} progress={progress} setProgress={setProgress} user={user} />,
   };
 
