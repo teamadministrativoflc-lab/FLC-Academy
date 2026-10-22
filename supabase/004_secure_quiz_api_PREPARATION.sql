@@ -49,6 +49,29 @@ end; $$;
 revoke all on function public.flc_start_secure_quiz() from public,anon;
 grant execute on function public.flc_start_secure_quiz() to authenticated;
 
+-- Return only the selected questions, options and topics. No answer keys.
+create or replace function public.flc_get_secure_quiz_questions(p_session_id uuid)
+returns table(question_id integer, topic text, q text, options jsonb)
+language plpgsql security definer set search_path = ''
+as $$
+begin
+ if auth.uid() is null then raise exception 'Authentication required'; end if;
+ if not exists (
+  select 1 from public.flc_quiz_sessions s
+  where s.id=p_session_id and s.agent_id=auth.uid()
+    and s.submitted_at is null and s.expires_at>now()
+ ) then raise exception 'Invalid quiz session'; end if;
+ return query
+ select k.question_id,k.topic,k.question_text,k.options
+ from public.flc_quiz_sessions s
+ cross join lateral unnest(s.question_ids) with ordinality x(id,ord)
+ join public.flc_quiz_answer_key k on k.question_id=x.id
+ where s.id=p_session_id
+ order by x.ord;
+end; $$;
+revoke all on function public.flc_get_secure_quiz_questions(uuid) from public,anon;
+grant execute on function public.flc_get_secure_quiz_questions(uuid) to authenticated;
+
 create or replace function public.flc_submit_secure_quiz(p_session_id uuid,p_answers jsonb)
 returns table(attempts_used integer,best_score numeric,quiz_passed boolean,score_percent numeric)
 language plpgsql security definer set search_path = ''
