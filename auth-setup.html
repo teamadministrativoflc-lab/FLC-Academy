@@ -9,7 +9,7 @@ main{background:white;border:1px solid #e2e7dc;border-radius:16px;padding:32px;w
 h1{margin:0 0 8px;font-size:25px}p{line-height:1.5;color:#475247}label{display:block;margin:16px 0 5px}
 input,button{box-sizing:border-box;width:100%;padding:13px;border-radius:8px;font:inherit}
 input{border:1px solid #b6c1b1}button{border:0;background:#123519;color:white;font-weight:600;cursor:pointer;margin-top:20px}
-button:disabled{opacity:.6;cursor:wait}#status{min-height:24px}#form{display:none}
+button:disabled{opacity:.6;cursor:wait}#status{min-height:24px}#form{display:none}#enter-academy{display:none;text-align:center;text-decoration:none;box-sizing:border-box;width:100%;padding:14px;border-radius:8px;background:#123519;color:#fff;font-weight:700;margin-top:20px}
 </style>
 </head>
 <body><main>
@@ -21,6 +21,7 @@ button:disabled{opacity:.6;cursor:wait}#status{min-height:24px}#form{display:non
 <label for="confirm">Confirma la contraseña</label><input id="confirm" type="password" autocomplete="new-password" minlength="12" required>
 <button id="submit" type="submit">Guardar contraseña</button>
 </form>
+<a id="enter-academy" href="/">Entrar a mi academia →</a>
 </main>
 <script type="module">
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
@@ -56,6 +57,7 @@ form.addEventListener('submit',async(e)=>{
   if(error){say('No se pudo guardar la contraseña. Solicita ayuda a la agencia.');return;}
   form.style.display='none';
   await supabase.auth.signOut();
-  say('Contraseña creada correctamente. La agencia te avisará cuando el nuevo inicio de sesión esté habilitado.');
+  say('✅ ¡Tu contraseña fue creada correctamente! Ya puedes iniciar sesión en FLC Academy.');
+  document.querySelector('#enter-academy').style.display='block';
 });
 </script></body></html>
