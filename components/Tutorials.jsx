@@ -327,6 +327,14 @@ function WatchedYouTube({v,user,lang,completed,onComplete}) {
           events:{onReady:e=>{
             const d=e.target.getDuration();
             if(d>0)durationRef.current=d;
+            // Resume near the last segment actually played. Seeking to this
+            // position does not add any new completed segments.
+            const stored=[...segments.current].filter(n=>Number.isInteger(n)&&n>=0);
+            if(stored.length&&d>0){
+              const resume=Math.min(Math.max(...stored)*5,Math.max(0,d-5));
+              if(resume>0)e.target.seekTo(resume,true);
+            }
+            lastRef.current=null;
             if(active)setReady(true);
           }}
         });
