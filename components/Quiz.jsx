@@ -34,7 +34,7 @@ function pickQuizQuestions(bank) {
 }
 
 function Quiz({ user, lang, t, onClose, onPass }) {
-  const bank = window.QUIZ_BANK;
+  const [sessionId, setSessionId] = React.useState(null);
   const [phase, setPhase] = React.useState('intro');   // 'intro' | 'quiz' | 'result'
   const [questions, setQuestions] = React.useState([]);
   const [answers, setAnswers] = React.useState({});    // { [qIdx]: optionIdx }
@@ -68,11 +68,27 @@ function Quiz({ user, lang, t, onClose, onPass }) {
   const attemptsLeft = Math.max(0, QUIZ_MAX_ATTEMPTS - attemptsUsed);
   const canRetry = attemptsLeft > 0 && !passed;
 
-  const startQuiz = () => {
-    setQuestions(pickQuizQuestions(bank));
-    setAnswers({});
-    setCurrent(0);
-    setPhase('quiz');
+  const startQuiz = async () => {
+    if (saving || loading) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      const started = await window.flcSupabase.rpc('flc_start_secure_quiz');
+      if (started.error) throw started.error;
+      const session = Array.isArray(started.data) ? started.data[0] : started.data;
+      if (!session?.session_id) throw new Error('Session missing');
+      const fetched = await window.flcSupabase.rpc('flc_get_secure_quiz_questions', { p_session_id: session.session_id });
+      if (fetched.error) throw fetched.error;
+      if (!Array.isArray(fetched.data) || fetched.data.length !== 15) throw new Error('Invalid question set');
+      setSessionId(session.session_id);
+      setQuestions(fetched.data.map(q => ({ id:q.question_id, topic:q.topic, q:q.q, options:q.options })));
+      setAnswers({});
+      setCurrent(0);
+      setPhase('quiz');
+    } catch (e) {
+      console.error('Quiz loading failed', e);
+      setSaveError(lang === 'es' ? 'No se pudo iniciar el examen. Intenta de nuevo.' : 'Could not start quiz. Please retry.');
+    } finally { setSaving(false); }
   };
 
   const answerQuestion = (optionIdx) => {
@@ -83,17 +99,21 @@ function Quiz({ user, lang, t, onClose, onPass }) {
     if (saving || loading) return;
     setSaving(true);
     setSaveError('');
-    let correct = 0;
-    questions.forEach((q, i) => { if (answers[i] === q.correct) correct++; });
-    const pct = Math.round((correct / questions.length) * 100);
     try {
-      const { data, error } = await window.flcSupabase.rpc('flc_record_quiz_attempt', { p_score: pct });
+      if (!sessionId || questions.length !== 15) throw new Error('No active quiz');
+      if (Object.keys(answers).length !== questions.length) throw new Error('Incomplete quiz');
+      const payload = questions.map((q,i) => ({ id:q.id, answer:answers[i] }));
+      const { data, error } = await window.flcSupabase.rpc('flc_submit_secure_quiz', {
+        p_session_id: sessionId, p_answers:payload
+      });
       if (error) throw error;
       const result = Array.isArray(data) ? data[0] : data;
       setAttemptsUsed(Number(result.attempts_used));
       setBestScore(Number(result.best_score));
       setPassed(Boolean(result.quiz_passed));
       const didPass = Boolean(result.quiz_passed);
+      const pct = Number(result.score_percent);
+      const correct = Math.round(pct * questions.length / 100);
       setLastScore({ correct, total: questions.length, pct, didPass });
       setPhase('result');
       if (didPass && onPass) onPass();
@@ -443,9 +463,8 @@ function QuizPlayer({ questions, answers, current, lang, t, onAnswer, onNext, on
 // ============ RESULT SCREEN ============
 function QuizResult({ result, questions, answers, lang, t, attemptsLeft, canRetry, onRetry, onClose }) {
   const { correct, total, pct, didPass } = result;
-  const wrongQuestions = questions
-    .map((q, i) => ({ q, i, userAnswer: answers[i] }))
-    .filter(x => x.userAnswer !== x.q.correct);
+  // The answer key stays on the server; detailed corrections are not sent to browsers.
+  const wrongQuestions = [];
 
   const scoreColor = didPass ? 'var(--success)' : 'var(--danger)';
 
