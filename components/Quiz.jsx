@@ -431,6 +431,9 @@ function QuizPlayer({ questions, answers, current, lang, t, onAnswer, onNext, on
         display: 'flex', gap: 10, alignItems: 'center',
         background: 'var(--white)',
       }}>
+        <button type="button" className="btn-secondary" onClick={onClose} title={lang === 'es' ? 'Salir sin enviar el examen' : 'Exit without submitting'} style={{marginRight:8}}>
+          {lang === 'es' ? 'Salir del examen' : 'Exit quiz'}
+        </button>
         <button className="btn-secondary" onClick={onPrev} disabled={current === 0}
                 style={{ opacity: current === 0 ? .4 : 1 }}>
           ← {t('q_prev')}
