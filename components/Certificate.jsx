@@ -5,33 +5,34 @@ function Certificate({ user, modules, progress, lang, onClose }) {
   const firstName = (user.name || '').split(' ')[0] || (lang === 'es' ? 'Agente' : 'Agent');
   const fullName = (user.name || (lang === 'es' ? 'Agente' : 'Agent')).trim();
 
-  // Generate certificate number based on user email + completion date
-  const [certData] = React.useState(() => {
-    const stored = localStorage.getItem(`flc_cert_${user.email}`);
-    if (stored) {
-      try { return JSON.parse(stored); } catch {}
-    }
-    const now = new Date();
-    const num = 'FLC-' + now.getFullYear() +
-                '-' + String(now.getMonth() + 1).padStart(2, '0') +
-                String(now.getDate()).padStart(2, '0') +
-                '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
-    const data = {
-      number: num,
-      date: now.toISOString(),
-    };
-    try { localStorage.setItem(`flc_cert_${user.email}`, JSON.stringify(data)); } catch {}
-    return data;
-  });
-
-  const dateFormatted = new Date(certData.date).toLocaleDateString(
+  const [certData, setCertData] = React.useState(null);
+  const [certError, setCertError] = React.useState('');
+  React.useEffect(() => {
+    let active = true;
+    window.flcSupabase.rpc('flc_issue_certificate').then(({data,error}) => {
+      if (!active) return;
+      if (error) {
+        console.error('Certificate issuance failed', error);
+        setCertError(lang === 'es' ? 'No se pudo cargar el certificado. Verifica que hayas aprobado el examen.' : 'Could not load your certificate. Check that you passed the quiz.');
+        return;
+      }
+      const cert = Array.isArray(data) ? data[0] : data;
+      if (!cert) { setCertError(lang === 'es' ? 'Certificado no disponible.' : 'Certificate unavailable.'); return; }
+      setCertData({ number: cert.certificate_code, date: cert.issued_at });
+    });
+    return () => { active = false; };
+  }, [user.id]);
+  const dateFormatted = certData ? new Date(certData.date).toLocaleDateString(
     lang === 'es' ? 'es-MX' : 'en-US',
     { day: 'numeric', month: 'long', year: 'numeric' }
-  );
+  ) : '';
 
   const handlePrint = () => {
     window.print();
   };
+
+  if (certError) return <div role="alert" style={{padding:32}}>{certError}<button onClick={onClose} style={{marginLeft:16}}>Cerrar</button></div>;
+  if (!certData) return <div style={{padding:32}}>{lang === 'es' ? 'Preparando certificado…' : 'Preparing certificate…'}</div>;
 
   return (
     <div id="certificate-modal" style={{
