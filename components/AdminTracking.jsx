@@ -30,19 +30,21 @@ function AdminTracking({setPage}) {
  const load=async()=>{
   setLoading(true);setError('');
   try{
-   const [p,l,m,q,c]=await Promise.all([
+   const [p,l,m,q,c,tc]=await Promise.all([
     window.flcSupabase.from('agent_profiles').select('id,full_name,role'),
     window.flcSupabase.from('login_activity').select('agent_id,logged_in_at').order('logged_in_at',{ascending:false}),
     window.flcSupabase.from('module_progress').select('agent_id,module_id,progress_percent'),
     window.flcSupabase.from('quiz_attempts').select('agent_id,score_percent,passed,attempted_at'),
-    window.flcSupabase.from('certificates').select('agent_id,certificate_code,issued_at')
+    window.flcSupabase.from('certificates').select('agent_id,certificate_code,issued_at'),
+    window.flcSupabase.from('tutorial_completions').select('agent_id,tutorial_id,completed_at')
    ]);
-   if(p.error||l.error||m.error||q.error||c.error)throw new Error('read failed');
+   if(p.error||l.error||m.error||q.error||c.error||tc.error)throw new Error('read failed');
    const last={};for(const a of l.data||[]){if(!last[a.agent_id])last[a.agent_id]=a.logged_in_at;}
    const prog={};for(const a of m.data||[]){(prog[a.agent_id]??={})[a.module_id]=a.progress_percent;}
    const quizzes={};for(const a of q.data||[]){const v=quizzes[a.agent_id]??={attempts:0,best:0,passed:false};v.attempts++;v.best=Math.max(v.best,Number(a.score_percent));v.passed=v.passed||a.passed;}
+   const tutorialRecords={};for(const x of tc.data||[]){(tutorialRecords[x.agent_id]??=[]).push(x);}
    const certs={};for(const a of c.data||[]){if(!certs[a.agent_id])certs[a.agent_id]=a;}
-   setRows((p.data||[]).map(a=>({...a,last:last[a.id],modules:prog[a.id]||{},quiz:quizzes[a.id],certificate:certs[a.id]})).sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||'')));
+   setRows((p.data||[]).map(a=>({...a,last:last[a.id],modules:prog[a.id]||{},quiz:quizzes[a.id],certificate:certs[a.id],tutorials:tutorialRecords[a.id]||[]})).sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||'')));
   }catch(e){setError('No se pudieron cargar los registros. Verifica los permisos RLS.');}
   finally{setLoading(false);}
  };
@@ -60,7 +62,7 @@ function AdminTracking({setPage}) {
  return <div style={{padding:28}}>
   <button onClick={()=>setPage('dashboard')} style={{marginBottom:14}}>← Volver a Inicio</button>
   <h1>Seguimiento de agentes</h1>
-  <p>Datos registrados en Supabase. Los porcentajes representan avance declarado, no visualización verificada de todas las páginas o videos.</p>
+  <p>Datos registrados en Supabase. Los módulos reflejan avance declarado. Los tutoriales se registran cuando el agente confirma que los completó; no se comprueba automáticamente la reproducción íntegra.</p>
   <button onClick={load} disabled={loading}>Actualizar registros</button>
   {loading&&<p>Cargando datos…</p>}{error&&<p role="alert" style={{color:'#a33'}}>{error}</p>}
   {!loading&&!error&&<React.Fragment>
@@ -95,8 +97,8 @@ function AdminTracking({setPage}) {
    <label htmlFor="flc-agent-search" style={{display:'block',marginBottom:6}}>Buscar agente</label>
    <input id="flc-agent-search" type="search" placeholder="Nombre del agente" value={search} onChange={e=>setSearch(e.target.value)} style={{padding:10,border:'1px solid #ccd5c8',borderRadius:6,width:'100%',maxWidth:340}}/>
    <div style={{overflowX:'auto',marginTop:16}}><table style={{borderCollapse:'collapse',width:'100%',background:'white'}}>
-    <thead><tr>{['Agente','Rol','Último ingreso','Progreso total','Módulo 1','Módulo 2','Módulo 3','Intentos','Mejor nota','Examen','Certificado'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd',whiteSpace:'nowrap'}}>{x}</th>)}</tr></thead>
-    <tbody>{filtered.map(a=><tr key={a.id}><td style={cell}>{a.full_name}</td><td style={cell}>{a.role}</td><td style={cell}>{date(a.last)}</td><td style={{...cell,fontWeight:700}}>{progressOf(a)}%</td>{moduleIds.map(id=><td key={id} style={cell}>{a.modules[id]??0}%</td>)}<td style={cell}>{a.quiz?.attempts??0}/3</td><td style={cell}>{a.quiz?.attempts?a.quiz.best+'%':'—'}</td><td style={cell}>{a.quiz?.passed?'Aprobado':a.quiz?.attempts?'Pendiente':'Sin presentar'}</td><td style={cell}>{a.certificate?.certificate_code||'—'}</td></tr>)}</tbody>
+    <thead><tr>{['Agente','Rol','Último ingreso','Progreso total','Módulo 1','Módulo 2','Módulo 3','Tutoriales completados','Detalle tutoriales','Intentos','Mejor nota','Examen','Certificado'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd',whiteSpace:'nowrap'}}>{x}</th>)}</tr></thead>
+    <tbody>{filtered.map(a=><tr key={a.id}><td style={cell}>{a.full_name}</td><td style={cell}>{a.role}</td><td style={cell}>{date(a.last)}</td><td style={{...cell,fontWeight:700}}>{progressOf(a)}%</td>{moduleIds.map(id=><td key={id} style={cell}>{a.modules[id]??0}%</td>)}<td style={cell}>{a.tutorials.length}</td><td style={cell}><details><summary>Ver detalle</summary>{a.tutorials.length?a.tutorials.map(v=><div key={v.tutorial_id} style={{minWidth:180,fontSize:12}}>{v.tutorial_id} · {date(v.completed_at)}</div>):'Ninguno registrado'}</details></td><td style={cell}>{a.quiz?.attempts??0}/3</td><td style={cell}>{a.quiz?.attempts?a.quiz.best+'%':'—'}</td><td style={cell}>{a.quiz?.passed?'Aprobado':a.quiz?.attempts?'Pendiente':'Sin presentar'}</td><td style={cell}>{a.certificate?.certificate_code||'—'}</td></tr>)}</tbody>
    </table>{filtered.length===0&&<p>{rows.length===0?'Todavía no hay agentes registrados.':'No hay agentes que coincidan con la búsqueda.'}</p>}</div>
   </React.Fragment>}
   <p style={{fontSize:12,color:'#59655b',marginTop:20}}>El progreso total es el promedio de los tres módulos. Las métricas generales excluyen cuentas administrativas. Los registros anteriores al nuevo sistema no se recuperan automáticamente.</p>
