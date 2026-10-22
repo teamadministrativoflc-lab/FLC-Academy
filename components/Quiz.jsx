@@ -39,19 +39,31 @@ function Quiz({ user, lang, t, onClose, onPass }) {
   const [questions, setQuestions] = React.useState([]);
   const [answers, setAnswers] = React.useState({});    // { [qIdx]: optionIdx }
   const [current, setCurrent] = React.useState(0);
-  const [attemptsUsed, setAttemptsUsed] = React.useState(() => {
-    try { return Number(localStorage.getItem(`flc_quiz_attempts_${user.email}`)) || 0; }
-    catch { return 0; }
-  });
-  const passed = (() => {
-    try { return localStorage.getItem(`flc_quiz_passed_${user.email}`) === '1'; }
-    catch { return false; }
-  })();
-  const bestScore = (() => {
-    try { return Number(localStorage.getItem(`flc_quiz_best_score_${user.email}`)) || 0; }
-    catch { return 0; }
-  })();
+  const [attemptsUsed, setAttemptsUsed] = React.useState(0);
+  const [passed, setPassed] = React.useState(false);
+  const [bestScore, setBestScore] = React.useState(0);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [saveError, setSaveError] = React.useState('');
   const [lastScore, setLastScore] = React.useState(null);
+
+  React.useEffect(() => {
+    let active = true;
+    window.flcSupabase.from('quiz_attempts')
+      .select('score_percent,passed')
+      .eq('agent_id', user.id)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) { setSaveError(lang === 'es' ? 'No se pudo cargar el historial de evaluaciones.' : 'Could not load quiz history.'); }
+        else {
+          setAttemptsUsed(data.length);
+          setPassed(data.some(a => a.passed));
+          setBestScore(Math.max(0, ...data.map(a => Number(a.score_percent))));
+        }
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, [user.id]);
 
   const attemptsLeft = Math.max(0, QUIZ_MAX_ATTEMPTS - attemptsUsed);
   const canRetry = attemptsLeft > 0 && !passed;
@@ -67,29 +79,30 @@ function Quiz({ user, lang, t, onClose, onPass }) {
     setAnswers(prev => ({ ...prev, [current]: optionIdx }));
   };
 
-  const finish = () => {
+  const finish = async () => {
+    if (saving || loading) return;
+    setSaving(true);
+    setSaveError('');
     let correct = 0;
-    questions.forEach((q, i) => {
-      if (answers[i] === q.correct) correct++;
-    });
+    questions.forEach((q, i) => { if (answers[i] === q.correct) correct++; });
     const pct = Math.round((correct / questions.length) * 100);
-    const didPass = pct >= QUIZ_PASS_PCT;
-
-    // Persist attempt
-    const newAttempts = attemptsUsed + 1;
     try {
-      localStorage.setItem(`flc_quiz_attempts_${user.email}`, String(newAttempts));
-      if (pct > bestScore) {
-        localStorage.setItem(`flc_quiz_best_score_${user.email}`, String(pct));
-      }
-      if (didPass) {
-        localStorage.setItem(`flc_quiz_passed_${user.email}`, '1');
-      }
-    } catch {}
-    setAttemptsUsed(newAttempts);
-    setLastScore({ correct, total: questions.length, pct, didPass });
-    setPhase('result');
-    if (didPass && onPass) onPass();
+      const { data, error } = await window.flcSupabase.rpc('flc_record_quiz_attempt', { p_score: pct });
+      if (error) throw error;
+      const result = Array.isArray(data) ? data[0] : data;
+      setAttemptsUsed(Number(result.attempts_used));
+      setBestScore(Number(result.best_score));
+      setPassed(Boolean(result.quiz_passed));
+      const didPass = Boolean(result.quiz_passed);
+      setLastScore({ correct, total: questions.length, pct, didPass });
+      setPhase('result');
+      if (didPass && onPass) onPass();
+    } catch (e) {
+      console.error('Quiz save failed', e);
+      setSaveError(lang === 'es'
+        ? 'No se guardó el intento. Verifica tu conexión y vuelve a presionar Finalizar. No cierres el examen.'
+        : 'Attempt not saved. Check your connection and press Finish again. Do not close the quiz.');
+    } finally { setSaving(false); }
   };
 
   return (
@@ -107,7 +120,9 @@ function Quiz({ user, lang, t, onClose, onPass }) {
         boxShadow: '0 40px 100px rgba(0,0,0,.5)',
         overflow: 'hidden',
       }}>
-        {phase === 'intro' && (
+        {loading && <p style={{padding:24}}>{lang === 'es' ? 'Cargando historial…' : 'Loading history…'}</p>}
+        {saveError && <p role="alert" style={{padding:'12px 24px',color:'#b04a3c'}}>{saveError}</p>}
+        {!loading && phase === 'intro' && (
           <QuizIntro user={user} lang={lang} t={t} onClose={onClose}
                      onStart={startQuiz}
                      attemptsUsed={attemptsUsed}
@@ -117,7 +132,7 @@ function Quiz({ user, lang, t, onClose, onPass }) {
                      bestScore={bestScore} />
         )}
 
-        {phase === 'quiz' && (
+        {!loading && phase === 'quiz' && (
           <QuizPlayer questions={questions} answers={answers} current={current}
                       lang={lang} t={t}
                       onAnswer={answerQuestion}
