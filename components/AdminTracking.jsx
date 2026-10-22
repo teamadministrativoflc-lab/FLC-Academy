@@ -26,6 +26,23 @@ function AdminTracking({setPage}) {
   }finally{setInviting(false);}
  };
  const moduleIds=['m1','m2','m3'];
+ const tutorialCategories=window.TUTORIAL_CATEGORIES||[];
+ const videoCatalog=tutorialCategories.flatMap(cat=>(cat.groups||[]).flatMap(group=>(group.videos||[]).map(v=>({
+   id:v.id,title:v.title_es||v.title_en||v.id,company:group.company||'Otros'
+ }))));
+ const videoLookup=Object.fromEntries(videoCatalog.map(v=>[v.id,v]));
+ const companyCatalog=Object.values(videoCatalog.reduce((map,v)=>{
+   if(!map[v.company])map[v.company]={name:v.company,ids:[]};
+   map[v.company].ids.push(v.id);
+   return map;
+ },{}));
+ const tutorialTotal=videoCatalog.length;
+ const tutorialSummary=agent=>{
+   const ids=new Set((agent.tutorials||[]).map(v=>v.tutorial_id));
+   return companyCatalog.map(group=>({
+     name:group.name,done:group.ids.filter(id=>ids.has(id)).length,total:group.ids.length
+   }));
+ };
  const progressOf=a=>Math.round(moduleIds.reduce((sum,id)=>sum+Number(a.modules[id]??0),0)/moduleIds.length);
  const load=async()=>{
   setLoading(true);setError('');
@@ -98,7 +115,7 @@ function AdminTracking({setPage}) {
    <input id="flc-agent-search" type="search" placeholder="Nombre del agente" value={search} onChange={e=>setSearch(e.target.value)} style={{padding:10,border:'1px solid #ccd5c8',borderRadius:6,width:'100%',maxWidth:340}}/>
    <div style={{overflowX:'auto',marginTop:16}}><table style={{borderCollapse:'collapse',width:'100%',background:'white'}}>
     <thead><tr>{['Agente','Rol','Último ingreso','Progreso total','Módulo 1','Módulo 2','Módulo 3','Tutoriales completados','Detalle tutoriales','Intentos','Mejor nota','Examen','Certificado'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd',whiteSpace:'nowrap'}}>{x}</th>)}</tr></thead>
-    <tbody>{filtered.map(a=><tr key={a.id}><td style={cell}>{a.full_name}</td><td style={cell}>{a.role}</td><td style={cell}>{date(a.last)}</td><td style={{...cell,fontWeight:700}}>{progressOf(a)}%</td>{moduleIds.map(id=><td key={id} style={cell}>{a.modules[id]??0}%</td>)}<td style={cell}>{a.tutorials.length}</td><td style={cell}><details><summary>Ver detalle</summary>{a.tutorials.length?a.tutorials.map(v=><div key={v.tutorial_id} style={{minWidth:180,fontSize:12}}>{v.tutorial_id} · {date(v.completed_at)}</div>):'Ninguno registrado'}</details></td><td style={cell}>{a.quiz?.attempts??0}/3</td><td style={cell}>{a.quiz?.attempts?a.quiz.best+'%':'—'}</td><td style={cell}>{a.quiz?.passed?'Aprobado':a.quiz?.attempts?'Pendiente':'Sin presentar'}</td><td style={cell}>{a.certificate?.certificate_code||'—'}</td></tr>)}</tbody>
+    <tbody>{filtered.map(a=><tr key={a.id}><td style={cell}>{a.full_name}</td><td style={cell}>{a.role}</td><td style={cell}>{date(a.last)}</td><td style={{...cell,fontWeight:700}}>{progressOf(a)}%</td>{moduleIds.map(id=><td key={id} style={cell}>{a.modules[id]??0}%</td>)}<td style={cell}>{a.tutorials.length} / {tutorialTotal} {tutorialTotal>0&&<div style={{fontSize:11,color:'#536454'}}>{Math.round(a.tutorials.length/tutorialTotal*100)}% declarado</div>}</td><td style={cell}><details><summary>Ver detalle</summary><div style={{minWidth:260,padding:'10px 0'}}><strong>Avance por compañía</strong>{tutorialSummary(a).map(group=><div key={group.name} style={{fontSize:12,marginTop:5}}>{group.name}: {group.done}/{group.total}</div>)}<div style={{borderTop:'1px solid #dce5d8',marginTop:10,paddingTop:8}}><strong>Videos confirmados</strong>{a.tutorials.length?a.tutorials.map(v=>{const video=videoLookup[v.tutorial_id];return <div key={v.tutorial_id} style={{fontSize:12,marginTop:6}}><strong>{video?.title||v.tutorial_id}</strong>{video?.company?' — '+video.company:''}<div style={{color:'#536454'}}>Completado: {date(v.completed_at)}</div></div>}):<div style={{fontSize:12,marginTop:5}}>Ninguno registrado</div>}</div></div></details></td><td style={cell}>{a.quiz?.attempts??0}/3</td><td style={cell}>{a.quiz?.attempts?a.quiz.best+'%':'—'}</td><td style={cell}>{a.quiz?.passed?'Aprobado':a.quiz?.attempts?'Pendiente':'Sin presentar'}</td><td style={cell}>{a.certificate?.certificate_code||'—'}</td></tr>)}</tbody>
    </table>{filtered.length===0&&<p>{rows.length===0?'Todavía no hay agentes registrados.':'No hay agentes que coincidan con la búsqueda.'}</p>}</div>
   </React.Fragment>}
   <p style={{fontSize:12,color:'#59655b',marginTop:20}}>El progreso total es el promedio de los tres módulos. Las métricas generales excluyen cuentas administrativas. Los registros anteriores al nuevo sistema no se recuperan automáticamente.</p>
