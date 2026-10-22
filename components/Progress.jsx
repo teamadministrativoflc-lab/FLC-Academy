@@ -12,16 +12,23 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
 
   const modulesComplete = totalPct === 100;
 
-  // Quiz state
-  const quizPassed = user && user.email
-    ? (() => { try { return localStorage.getItem(`flc_quiz_passed_${user.email}`) === '1'; } catch { return false; } })()
-    : false;
-  const quizAttempts = user && user.email
-    ? (() => { try { return Number(localStorage.getItem(`flc_quiz_attempts_${user.email}`)) || 0; } catch { return 0; } })()
-    : 0;
-  const quizBestScore = user && user.email
-    ? (() => { try { return Number(localStorage.getItem(`flc_quiz_best_score_${user.email}`)) || 0; } catch { return 0; } })()
-    : 0;
+  // The server is the source of truth across devices.
+  const [quizState, setQuizState] = React.useState({ attempts: 0, best: 0, passed: false, loaded: false });
+  const refreshQuizState = React.useCallback(async () => {
+    const { data, error } = await window.flcSupabase.from('quiz_attempts')
+      .select('score_percent,passed').eq('agent_id', user.id);
+    if (error) { console.error('Quiz state load failed', error); return; }
+    setQuizState({
+      attempts: data.length,
+      best: Math.max(0, ...data.map(item => Number(item.score_percent))),
+      passed: data.some(item => item.passed),
+      loaded: true
+    });
+  }, [user.id]);
+  React.useEffect(() => { refreshQuizState(); }, [refreshQuizState]);
+  const quizPassed = quizState.passed;
+  const quizAttempts = quizState.attempts;
+  const quizBestScore = quizState.best;
   const quizAttemptsLeft = Math.max(0, (window.QUIZ_MAX_ATTEMPTS || 3) - quizAttempts);
   const quizExhausted = quizAttemptsLeft === 0 && !quizPassed;
 
@@ -29,14 +36,14 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
 
   // Auto-open quiz when user completes modules for the first time
   React.useEffect(() => {
-    if (modulesComplete && !quizPassed && !quizExhausted && user && user.email) {
+    if (quizState.loaded && modulesComplete && !quizPassed && !quizExhausted && user && user.email) {
       const key = `flc_quiz_prompted_${user.email}`;
       if (!localStorage.getItem(key)) {
         setShowQuiz(true);
         localStorage.setItem(key, '1');
       }
     }
-  }, [modulesComplete]);
+  }, [modulesComplete, quizState.loaded, quizPassed, quizExhausted]);
 
   // Auto-open certificate when quiz is passed for the first time
   React.useEffect(() => {
@@ -60,10 +67,12 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
 
   const handleQuizPass = () => {
     // Force re-render so certUnlocked recomputes
+    refreshQuizState();
     setQuizVersion(v => v + 1);
   };
   const handleQuizClose = () => {
     setShowQuiz(false);
+    refreshQuizState();
     setQuizVersion(v => v + 1);
   };
 

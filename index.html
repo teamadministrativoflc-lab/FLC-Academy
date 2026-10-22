@@ -381,10 +381,11 @@
 <script type="text/babel" src="data/companies.js"></script>
 <script type="text/babel" src="data/resources.js"></script>
 <script type="text/babel" src="data/resource_content.js"></script>
-<script type="text/babel" src="data/quiz_bank.js"></script>
 <script type="text/babel" src="data/matcher.js"></script>
 <script type="text/babel" src="components/icons.jsx"></script>
-<script type="text/babel" src="components/Login.jsx"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>window.flcSupabase = window.supabase.createClient('https://fvhbzutxaoujtnnjzhlk.supabase.co','sb_publishable_rAio9qIcW3ecuM4qxiUZ_A_Z8iuZhFE');</script>
+<script type="text/babel" src="components/SupabaseLogin.jsx"></script>
 <script type="text/babel" src="components/Sidebar.jsx"></script>
 <script type="text/babel" src="components/Dashboard.jsx"></script>
 <script type="text/babel" src="components/Matcher.jsx"></script>
@@ -395,6 +396,7 @@
 <script type="text/babel" src="components/WelcomeVideo.jsx"></script>
 <script type="text/babel" src="components/Certificate.jsx"></script>
 <script type="text/babel" src="components/Quiz.jsx"></script>
+<script type="text/babel" src="components/AdminTracking.jsx"></script>
 <script type="text/babel" src="app.jsx"></script>
 </body>
 </html>

@@ -23,7 +23,7 @@ function ytThumbnail(url) {
   return m ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : null;
 }
 
-function Tutorials({ t, lang }) {
+function Tutorials({ t, lang, user }) {
   const categories = window.TUTORIAL_CATEGORIES || [];
   if (!categories.length) return <div style={{ padding: 40 }}>No tutorials loaded.</div>;
 
@@ -35,6 +35,33 @@ function Tutorials({ t, lang }) {
     return categories[0].id;
   });
   const [playing, setPlaying] = React.useState(null);
+  const [completed, setCompleted] = React.useState({});
+  const [trackingError, setTrackingError] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  React.useEffect(() => {
+    let active = true;
+    setCompleted({});setTrackingError('');
+    if (!user?.id || !window.flcSupabase) return;
+    window.flcSupabase.from('tutorial_completions').select('tutorial_id,completed_at')
+      .eq('agent_id',user.id).then(({data,error}) => {
+        if(!active) return;
+        if(error){setTrackingError('El registro de tutoriales aún no está disponible.');return;}
+        setCompleted(Object.fromEntries((data||[]).map(r=>[r.tutorial_id,r.completed_at])));
+      });
+    return () => {active=false;};
+  },[user?.id]);
+  const markComplete = async (v) => {
+    if(!user?.id || saving || completed[v.id])return;
+    setSaving(true);setTrackingError('');
+    try {
+      const {data:{user:sessionUser},error:authError}=await window.flcSupabase.auth.getUser();
+      if(authError||sessionUser?.id!==user.id) throw Error('Acceso no válido');
+      const {data,error}=await window.flcSupabase.rpc('flc_complete_watched_tutorial',{p_tutorial_id:v.id});
+      if(error)throw error;
+      setCompleted(old=>({...old,[v.id]:data}));
+    } catch(e){setTrackingError('No se pudo guardar el tutorial. Contacta a Administración.');}
+    finally{setSaving(false);}
+  };
 
   React.useEffect(() => {
     localStorage.setItem('flc_tutorial_cat', activeCatId);
@@ -50,6 +77,8 @@ function Tutorials({ t, lang }) {
       <div className="breadcrumb">{t('nav_learn')} · <span>{t('nav_tutorials')}</span></div>
       <h1 className="page-title">{t('t_title_a')} <em>{t('t_title_b')}</em></h1>
       <p className="page-sub">{t('t_sub')}</p>
+      <p style={{marginBottom:20,fontWeight:600}}>✓ {Object.keys(completed).length} {lang==='es'?'tutoriales completados (reproducción registrada)':'tutorials completed (playback tracked)'}</p>
+      {trackingError&&<p role="alert" style={{color:'#aa3322'}}>{trackingError}</p>}
 
       {/* Category tabs — big and prominent */}
       <div style={{
@@ -150,19 +179,19 @@ function Tutorials({ t, lang }) {
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {group.videos.map(v => (
-              <VideoCard key={v.id} v={v} lang={lang} color={group.color}
+              <VideoCard key={v.id} v={v} lang={lang} color={group.color} completed={!!completed[v.id]}
                          onPlay={() => setPlaying({ ...v, company: group.company, color: group.color })} />
             ))}
           </div>
         </div>
       ))}
 
-      {playing && <VideoModal v={playing} lang={lang} onClose={() => setPlaying(null)} />}
+      {playing && <VideoModal key={playing.id} v={playing} lang={lang} user={user} completed={!!completed[playing.id]} saving={saving} onComplete={() => markComplete(playing)} onClose={() => setPlaying(null)} />}
     </div>
   );
 }
 
-function VideoCard({ v, lang, color, onPlay }) {
+function VideoCard({ v, lang, color, onPlay, completed }) {
   const thumb = ytThumbnail(v.url);
   const isYT = isYouTube(v.url);
 
@@ -237,83 +266,124 @@ function VideoCard({ v, lang, color, onPlay }) {
         <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.35 }}>
           {lang === 'es' ? v.title_es : v.title_en}
         </div>
+        {completed && <div style={{color:'#23783a',fontSize:12,marginTop:8,fontWeight:700}}>✓ {lang==='es'?'Completado':'Completed'}</div>}
       </div>
     </div>
   );
 }
 
-function VideoModal({ v, lang, onClose }) {
-  const embedUrl = toEmbedUrl(v.url);
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0,
-      background: 'rgba(5,8,5,.85)',
-      backdropFilter: 'blur(6px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 100, padding: 24,
-    }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: 'var(--paper)', borderRadius: 16,
-        width: 'min(1000px, 100%)', maxHeight: '92vh',
-        boxShadow: '0 40px 100px rgba(0,0,0,.5)',
-        overflow: 'hidden',
-        display: 'flex', flexDirection: 'column',
-      }}>
-        {/* Video */}
-        <div style={{
-          aspectRatio: '16 / 9', background: '#000',
-          position: 'relative',
-        }}>
-          <iframe
-            src={embedUrl}
-            allow="autoplay; encrypted-media; fullscreen"
-            allowFullScreen
-            style={{ width: '100%', height: '100%', border: 'none' }}
-          />
-
-          <button onClick={onClose} style={{
-            position: 'absolute', top: 14, right: 14,
-            width: 36, height: 36, borderRadius: 18,
-            background: 'rgba(0,0,0,.6)', color: 'white',
-            border: 'none', cursor: 'pointer',
-            display: 'grid', placeItems: 'center',
-            transition: 'background .12s',
+// The YouTube iframe API exposes current time, duration and seeking events.
+// Segment coverage is stored in Supabase, rather than counting jumps to the end.
+let flcYouTubeAPI;
+function flcLoadYouTubeAPI() {
+  if(window.YT?.Player)return Promise.resolve();
+  if(!flcYouTubeAPI)flcYouTubeAPI=new Promise((resolve,reject)=>{
+    const old=window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady=()=>{if(typeof old==='function')old();resolve();};
+    const script=document.createElement('script');script.src='https://www.youtube.com/iframe_api';
+    script.onerror=()=>reject(Error('YouTube API unavailable'));document.head.appendChild(script);
+  });
+  return flcYouTubeAPI;
+}
+function WatchedYouTube({v,user,lang,completed,onComplete}) {
+  const mount=React.useRef(null),player=React.useRef(null),segments=React.useRef(new Set());
+  const durationRef=React.useRef(0),lastRef=React.useRef(null),savingRef=React.useRef(false);
+  const [coverage,setCoverage]=React.useState(0),[status,setStatus]=React.useState('');
+  const [ready,setReady]=React.useState(false);
+  React.useEffect(()=>{
+    let active=true,interval=null,dirty=false;
+    const total=()=>Math.ceil(durationRef.current/5);
+    const percent=()=>total()?Math.min(100,Math.round(100*segments.current.size/total())):0;
+    const persist=async()=>{
+      if(!dirty||savingRef.current||!user?.id||!durationRef.current)return;
+      savingRef.current=true;dirty=false;
+      const ids=[...segments.current].sort((a,b)=>a-b);
+      try {
+        const {error}=await window.flcSupabase.from('tutorial_watch_progress').upsert({
+          agent_id:user.id,tutorial_id:v.id,watched_segments:ids,duration_seconds:Math.ceil(durationRef.current),
+          updated_at:new Date().toISOString()
+        },{onConflict:'agent_id,tutorial_id'});
+        if(error)throw error;
+        if(ids.length/Math.max(1,total())>=0.95&&!completed) await onComplete();
+      }catch(e){dirty=true;if(active)setStatus(lang==='es'?'No se pudo guardar el progreso.':'Unable to save progress.');}
+      finally{savingRef.current=false;}
+    };
+    const begin=async()=>{
+      try {
+        const {data,error}=await window.flcSupabase.from('tutorial_watch_progress')
+         .select('watched_segments,duration_seconds').eq('agent_id',user.id).eq('tutorial_id',v.id).maybeSingle();
+        if(error)throw error;
+        if(!active)return;
+        segments.current=new Set(data?.watched_segments||[]);
+        durationRef.current=Number(data?.duration_seconds)||0;
+        setCoverage(percent());
+        await flcLoadYouTubeAPI();
+        if(!active||!mount.current)return;
+        const match=v.url.match(/(?:youtu.be\/|youtube.com\/watch\?v=)([A-Za-z0-9_-]+)/);
+        if(!match)throw Error('Invalid video URL');
+        player.current=new window.YT.Player(mount.current,{
+          videoId:match[1],
+          playerVars:{rel:0,playsinline:1,origin:window.location.origin},
+          events:{onReady:e=>{
+            const d=e.target.getDuration();
+            if(d>0)durationRef.current=d;
+            // Resume near the last segment actually played. Seeking to this
+            // position does not add any new completed segments.
+            const stored=[...segments.current].filter(n=>Number.isInteger(n)&&n>=0);
+            if(stored.length&&d>0){
+              const resume=Math.min(Math.max(...stored)*5,Math.max(0,d-5));
+              if(resume>0)e.target.seekTo(resume,true);
+            }
+            lastRef.current=null;
+            if(active)setReady(true);
           }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,.8)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,.6)'}>
-            <I name="x" size={16} />
-          </button>
-        </div>
-
-        {/* Info bar */}
-        <div style={{
-          padding: '20px 28px',
-          display: 'flex', alignItems: 'center', gap: 16,
-          background: 'var(--white)',
-        }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 8,
-            background: v.color, color: 'white',
-            display: 'grid', placeItems: 'center', flexShrink: 0,
-          }}>
-            <I name="play" size={16} stroke={0} style={{ fill: 'currentColor', marginLeft: 2 }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
-              color: 'var(--ink-mute)', fontWeight: 700, marginBottom: 2,
-            }}>
-              {v.company}
-            </div>
-            <div className="serif" style={{ fontSize: 22, lineHeight: 1.15 }}>
-              {lang === 'es' ? v.title_es : v.title_en}
-            </div>
-          </div>
-        </div>
-      </div>
+        });
+        interval=setInterval(()=>{
+          const p=player.current;if(!p||!active)return;
+          const duration=Number(p.getDuration?.()),time=Number(p.getCurrentTime?.());
+          if(duration>0)durationRef.current=duration;
+          if(!Number.isFinite(time)||!durationRef.current)return;
+          const playing=p.getPlayerState?.()===window.YT.PlayerState.PLAYING;
+          const now=Date.now(),prior=lastRef.current;
+          if(playing&&prior&&prior.playing){
+            const elapsed=(now-prior.now)/1000,delta=time-prior.time;
+            // Count only ordinary playback (not forward seeking).
+            if(delta>=0&&delta<=Math.max(2.5,elapsed*2.2)&&elapsed<4) {
+              const start=Math.floor(prior.time/5),end=Math.floor(time/5);
+              for(let n=start;n<=end;n++)if(n>=0&&n<total()&&!segments.current.has(n)){segments.current.add(n);dirty=true;}
+              setCoverage(percent());
+            }
+          }
+          lastRef.current={time,now,playing};
+        },1000);
+      }catch(e){if(active)setStatus(lang==='es'?'No se puede registrar este video.':'Cannot track this video.');}
+    };
+    begin();
+    const saveInterval=setInterval(()=>{persist();},5000);
+    return ()=>{active=false;if(interval)clearInterval(interval);clearInterval(saveInterval);persist();try{player.current?.destroy?.();}catch(e){}};
+  },[v.id,user?.id]);
+  return <React.Fragment>
+    <div style={{aspectRatio:'16 / 9',background:'#000'}}><div ref={mount} style={{width:'100%',height:'100%'}} /></div>
+    <div style={{padding:'12px 28px',background:'white'}}>
+      <strong>{completed?'✓ '+(lang==='es'?'Completado':'Completed'):(lang==='es'?'Reproducción registrada: ':'Tracked playback: ')+coverage+'%'}</strong>
+      <div style={{height:7,background:'#e8ece4',borderRadius:5,marginTop:8,overflow:'hidden'}}><div style={{width:coverage+'%',height:'100%',background:'#347542'}} /></div>
+      <div style={{fontSize:12,marginTop:8,color:'#536454'}}>{lang==='es'?'El tutorial se completará automáticamente al registrar el 95 % reproducido. Adelantar no suma progreso.':'Automatically completed at 95% tracked playback. Seeking does not count.'}</div>
+      {status&&<div role="alert" style={{fontSize:12,color:'#a33'}}>{status}</div>}
     </div>
-  );
+  </React.Fragment>;
 }
-
+function VideoModal({v,lang,user,onClose,completed,saving,onComplete}) {
+  const youtube=isYouTube(v.url);
+  return <div style={{position:'fixed',inset:0,background:'rgba(5,8,5,.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,padding:24}} onClick={onClose}>
+   <div style={{background:'var(--paper)',borderRadius:16,width:'min(1000px,100%)',maxHeight:'92vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+    <div style={{position:'relative'}}>
+     {youtube?<WatchedYouTube v={v} user={user} lang={lang} completed={completed} onComplete={onComplete} />:
+      <React.Fragment><div style={{aspectRatio:'16 / 9',background:'#000'}}><iframe src={toEmbedUrl(v.url)} allow="autoplay; encrypted-media; fullscreen" allowFullScreen style={{width:'100%',height:'100%',border:0}} /></div>
+       <p style={{padding:16,color:'#835b18'}}>{lang==='es'?'Pendiente: este video de Google Drive todavía no admite verificación de reproducción.':'Pending: this Google Drive video cannot yet be tracked.'}</p></React.Fragment>}
+     <button onClick={onClose} aria-label="Cerrar video" style={{position:'absolute',top:10,right:10,background:'#222',color:'white',border:0,borderRadius:24,padding:'8px 13px',cursor:'pointer'}}>✕</button>
+    </div>
+    <div style={{padding:'16px 28px',background:'white'}}><strong>{lang==='es'?v.title_es:v.title_en}</strong> — {v.company}</div>
+   </div>
+  </div>;
+}
 window.Tutorials = Tutorials;
