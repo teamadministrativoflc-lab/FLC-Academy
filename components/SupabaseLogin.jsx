@@ -27,6 +27,7 @@ function SupabaseLogin({ onLogin, lang, setLang }) {
    {error&&<p role="alert" style={{color:'#b04a3c'}}>{error}</p>}
    <button type="submit" disabled={busy} style={{background:'#143a1e',color:'white',width:'100%',padding:13,borderRadius:7}}>{busy?'…':lang==='es'?'Entrar a la academia':'Sign in'}</button>
   </form>
+  <p style={{marginTop:16,textAlign:'center'}}><a href="./auth-recovery.html" style={{color:'#143a1e',textDecoration:'underline',fontWeight:600}}>{lang==='es'?'¿Olvidaste tu contraseña?':'Forgot your password?'}</a></p>
   <p style={{fontSize:12,marginTop:20}}>{lang==='es'?'Las cuentas son creadas por la agencia.':'Accounts are created by the agency.'}</p>
  </main>;
 }
