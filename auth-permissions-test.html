@@ -1,0 +1,109 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prueba de seguridad | FLC Academy</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f6f7f2;
+      color: #152516;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    main {
+      background: white;
+      padding: 32px;
+      border-radius: 14px;
+      max-width: 480px;
+    }
+    button {
+      background: #173b20;
+      color: white;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #resultado { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>FLC Academy</h1>
+    <h2>Verificación de seguridad</h2>
+    <p>
+      Esta prueba comprueba que los agentes
+      no puedan enviar invitaciones.
+    </p>
+    <button id="probar">Comprobar permisos</button>
+    <p id="resultado"></p>
+  </main>
+
+  <script type="module">
+    import { createClient } from
+      "https://esm.sh/@supabase/supabase-js@2";
+
+    const supabase = createClient(
+      "https://fvhbzutxaoujtnnjzhlk.supabase.co",
+      "sb_publishable_rAio9qIcW3ecuM4qxiUZ_A_Z8iuZhFE"
+    );
+
+    document.getElementById("probar")
+      .addEventListener("click", async () => {
+        const resultado =
+          document.getElementById("resultado");
+
+        resultado.textContent = "Comprobando...";
+
+       const { data: { session } } =
+  await supabase.auth.getSession();
+
+        if (!session) {
+          resultado.textContent =
+            "No hay sesión activa. Inicia sesión como agente.";
+          return;
+        }
+
+const { data: perfil, error: errorPerfil } =
+  await supabase
+    .from("agent_profiles")
+    .select("role")
+    .eq("id", session.user.id)
+    .single();
+
+if (errorPerfil || perfil?.role !== "agent") {
+  resultado.textContent =
+    "Prueba detenida: se requiere una cuenta de agente.";
+  return;
+}
+
+        const { error } =
+          await supabase.functions.invoke(
+            "flc-invite-agent",
+            {
+              body: {
+                email: "",
+                full_name: ""
+              }
+            }
+          );
+
+        const status = error?.context?.status;
+
+        if (status === 403) {
+          resultado.textContent =
+            "✅ PRUEBA SUPERADA: Acceso no autorizado (403).";
+        } else {
+          resultado.textContent =
+            "Resultado HTTP: " + (status ?? "sin error") +
+            ". Requiere revisión.";
+        }
+      });
+  </script>
+</body>
+</html>
