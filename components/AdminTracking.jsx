@@ -34,7 +34,7 @@ function AdminTracking({setPage}) {
   setAccessBusy(true);setAccessMessage('');
   try{
    const target=accessEmail.trim().toLowerCase();
-   const redirectTo=new URL('./auth-setup.html',window.location.href).href;
+   const redirectTo='https://flc-academy.vercel.app/auth-setup.html';
    const {error}=await window.flcSupabase.auth.resetPasswordForEmail(target,{redirectTo});
    if(error)throw error;
    setAccessMessage('Solicitud enviada. Si el correo corresponde a una cuenta existente, recibirá un enlace nuevo para establecer su contraseña. Revisa Spam.');
