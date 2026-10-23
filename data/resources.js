@@ -335,6 +335,102 @@ window.RESOURCES = {
 // Videos in YouTube or Drive — the player auto-converts both.
 window.TUTORIAL_CATEGORIES = [
   {
+    id: 'mentalidad',
+    title_es: 'Mentalidad',
+    title_en: 'Mindset',
+    icon: 'sparkle',
+    color: '#a5822f',
+    desc_es: 'Entrenamientos de mentalidad y crecimiento como empresario.',
+    desc_en: 'Mindset and business-owner training.',
+    groups: [
+      {
+        companyId: 'mindset', company: 'Entrenamientos', color: '#a5822f',
+        hideCompanyLabel: true,
+        videos: [
+          { id: 'mind-before-result',
+            title_es: 'Mentalidad antes del resultado',
+            title_en: 'Mindset before the result',
+            url: 'https://youtu.be/zFYf9GTvi0o' },
+          { id: 'mind-agent-entrepreneur',
+            title_es: 'Pasar de agente a empresario',
+            title_en: 'From agent to entrepreneur',
+            url: 'https://youtu.be/x_VuaZVQtwY' },
+          { id: 'mind-virtual',
+            title_es: 'Trabajar en un entorno virtual',
+            title_en: 'Working in a virtual environment',
+            url: 'https://youtu.be/G8vyWYqac9M' },
+        ],
+      },
+    ],
+  },  {
+    id: 'registro',
+    title_es: 'Registro en las compañías',
+    title_en: 'Carrier registration',
+    icon: 'shield',
+    color: '#4a7a2a',
+    desc_es: 'Cómo darte de alta en el portal de cada aseguradora.',
+    desc_en: 'How to sign up on each carrier\'s portal.',
+    groups: [
+      {
+        companyId: 'nlg', company: 'National Life Group', color: '#1e5b8f',
+        videos: [
+          { id: 'reg-nlg', title_es: 'Registro en National Life', title_en: 'Registration in National Life',
+            url: 'https://youtu.be/oq28e_kxFm8' },
+        ],
+      },
+      {
+        companyId: 'americo', company: 'Americo', color: '#8b1e3f',
+        videos: [
+          { id: 'reg-americo', title_es: 'Registro en Americo', title_en: 'Registration in Americo',
+            url: 'https://youtu.be/xuIBl_oKD24' },
+        ],
+      },
+      {
+        companyId: 'aa', company: 'American Amicable', color: '#2d5142',
+        videos: [
+          { id: 'reg-aa', title_es: 'Registro en American Amicable', title_en: 'Registration in American Amicable',
+            url: 'https://youtu.be/5o9FhmnJcAc' },
+        ],
+      },
+      {
+        companyId: 'fg', company: 'F&G', color: '#c9a24a',
+        videos: [
+          { id: 'reg-fg', title_es: 'Registro en F&G', title_en: 'Registration in F&G',
+            url: 'https://youtu.be/S9xQhMPTvUg' },
+        ],
+      },
+      {
+        companyId: 'moo', company: 'Mutual of Omaha', color: '#1a4d8f',
+        videos: [
+          { id: 'reg-moo', title_es: 'Registro en Mutual of Omaha', title_en: 'Registration in Mutual of Omaha',
+            url: 'https://youtu.be/q56IxRsoRDQ' },
+        ],
+      },
+      {
+        companyId: 'aetna', company: 'Aetna', color: '#6f2c91',
+        videos: [
+          { id: 'reg-aetna', title_es: 'Registro en Aetna', title_en: 'Registration in Aetna',
+            url: 'https://youtu.be/nxr3rKxikj0' },
+        ],
+      },
+      {
+        companyId: 'foresters', company: 'Foresters', color: '#0a7052',
+        videos: [
+          { id: 'reg-foresters', title_es: 'Registro en Foresters', title_en: 'Registration in Foresters',
+            url: 'https://youtu.be/1Xm0wo1FjzQ' },
+        ],
+      },
+      {
+        companyId: 'athene', company: 'Athene', color: '#6b4a7d',
+        videos: [
+          { id: 'reg-athene', title_es: 'Registro en Athene', title_en: 'Registration in Athene',
+            url: 'https://youtu.be/YGgBPaz0MgU' },
+        ],
+      },
+    ],
+  },
+
+  {
     id: 'ilustraciones',
     title_es: 'Ilustraciones y cotizaciones',
     title_en: 'Illustrations & quoting',
@@ -427,103 +523,7 @@ window.TUTORIAL_CATEGORIES = [
     ],
   },
 
-  {
-    id: 'registro',
-    title_es: 'Registro en las compañías',
-    title_en: 'Carrier registration',
-    icon: 'shield',
-    color: '#4a7a2a',
-    desc_es: 'Cómo darte de alta en el portal de cada aseguradora.',
-    desc_en: 'How to sign up on each carrier\'s portal.',
-    groups: [
-      {
-        companyId: 'nlg', company: 'National Life Group', color: '#1e5b8f',
-        videos: [
-          { id: 'reg-nlg', title_es: 'Registro en National Life', title_en: 'Registration in National Life',
-            url: 'https://youtu.be/oq28e_kxFm8' },
-        ],
-      },
-      {
-        companyId: 'americo', company: 'Americo', color: '#8b1e3f',
-        videos: [
-          { id: 'reg-americo', title_es: 'Registro en Americo', title_en: 'Registration in Americo',
-            url: 'https://youtu.be/xuIBl_oKD24' },
-        ],
-      },
-      {
-        companyId: 'aa', company: 'American Amicable', color: '#2d5142',
-        videos: [
-          { id: 'reg-aa', title_es: 'Registro en American Amicable', title_en: 'Registration in American Amicable',
-            url: 'https://youtu.be/5o9FhmnJcAc' },
-        ],
-      },
-      {
-        companyId: 'fg', company: 'F&G', color: '#c9a24a',
-        videos: [
-          { id: 'reg-fg', title_es: 'Registro en F&G', title_en: 'Registration in F&G',
-            url: 'https://youtu.be/S9xQhMPTvUg' },
-        ],
-      },
-      {
-        companyId: 'moo', company: 'Mutual of Omaha', color: '#1a4d8f',
-        videos: [
-          { id: 'reg-moo', title_es: 'Registro en Mutual of Omaha', title_en: 'Registration in Mutual of Omaha',
-            url: 'https://youtu.be/q56IxRsoRDQ' },
-        ],
-      },
-      {
-        companyId: 'aetna', company: 'Aetna', color: '#6f2c91',
-        videos: [
-          { id: 'reg-aetna', title_es: 'Registro en Aetna', title_en: 'Registration in Aetna',
-            url: 'https://youtu.be/nxr3rKxikj0' },
-        ],
-      },
-      {
-        companyId: 'foresters', company: 'Foresters', color: '#0a7052',
-        videos: [
-          { id: 'reg-foresters', title_es: 'Registro en Foresters', title_en: 'Registration in Foresters',
-            url: 'https://youtu.be/1Xm0wo1FjzQ' },
-        ],
-      },
-      {
-        companyId: 'athene', company: 'Athene', color: '#6b4a7d',
-        videos: [
-          { id: 'reg-athene', title_es: 'Registro en Athene', title_en: 'Registration in Athene',
-            url: 'https://youtu.be/YGgBPaz0MgU' },
-        ],
-      },
-    ],
-  },
 
-  {
-    id: 'mentalidad',
-    title_es: 'Mentalidad',
-    title_en: 'Mindset',
-    icon: 'sparkle',
-    color: '#a5822f',
-    desc_es: 'Entrenamientos de mentalidad y crecimiento como empresario.',
-    desc_en: 'Mindset and business-owner training.',
-    groups: [
-      {
-        companyId: 'mindset', company: 'Entrenamientos', color: '#a5822f',
-        hideCompanyLabel: true,
-        videos: [
-          { id: 'mind-before-result',
-            title_es: 'Mentalidad antes del resultado',
-            title_en: 'Mindset before the result',
-            url: 'https://youtu.be/zFYf9GTvi0o' },
-          { id: 'mind-agent-entrepreneur',
-            title_es: 'Pasar de agente a empresario',
-            title_en: 'From agent to entrepreneur',
-            url: 'https://youtu.be/x_VuaZVQtwY' },
-          { id: 'mind-virtual',
-            title_es: 'Trabajar en un entorno virtual',
-            title_en: 'Working in a virtual environment',
-            url: 'https://youtu.be/G8vyWYqac9M' },
-        ],
-      },
-    ],
-  },
 ];
 
 window.PROGRESS_MODULES = [
