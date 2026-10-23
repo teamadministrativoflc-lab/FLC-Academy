@@ -111,6 +111,7 @@ function AdminTracking({setPage}) {
      {inviteFeedback&&<p role="status" style={{color:inviteSuccess?'#2d6534':'#a33',marginBottom:0}}>{inviteFeedback}</p>}
     </form>
    </section>
+   <TeamAssignmentsAdmin />
    <label htmlFor="flc-agent-search" style={{display:'block',marginBottom:6}}>Buscar agente</label>
    <input id="flc-agent-search" type="search" placeholder="Nombre del agente" value={search} onChange={e=>setSearch(e.target.value)} style={{padding:10,border:'1px solid #ccd5c8',borderRadius:6,width:'100%',maxWidth:340}}/>
    <div style={{overflowX:'auto',marginTop:16}}><table style={{borderCollapse:'collapse',width:'100%',background:'white'}}>
