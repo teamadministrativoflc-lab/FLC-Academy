@@ -2,12 +2,14 @@ function App() {
   const [lang, setLang] = React.useState(() => localStorage.getItem('flc_lang') || 'es');
   const [user, setUser] = React.useState(null);
   const [authReady, setAuthReady] = React.useState(false);
+  const [isLeader,setIsLeader]=React.useState(false);
   React.useEffect(() => {
     let mounted = true;
     async function load(session) {
       if (!session) { if (mounted) { setUser(null); setAuthReady(true); } return; }
       const {data:profile,error} = await window.flcSupabase.from('agent_profiles').select('full_name,role').eq('id',session.user.id).single();
-      if (mounted) { setUser(!error && profile ? {id:session.user.id,email:session.user.email,name:profile.full_name,role:profile.role}:null);setAuthReady(true); }
+      const {data:leader}=!error&&profile&&profile.role!=='admin' ? await window.flcSupabase.rpc('flc_is_team_leader') : {data:false};
+      if (mounted) { setUser(!error && profile ? {id:session.user.id,email:session.user.email,name:profile.full_name,role:profile.role}:null);setIsLeader(!!leader);setAuthReady(true); }
     }
     window.flcSupabase.auth.getSession().then(({data})=>load(data.session));
     const {data:{subscription}}=window.flcSupabase.auth.onAuthStateChange((_event,session)=>{
@@ -85,6 +87,7 @@ function App() {
 
   const pages = {
     admin: user.role === 'admin' ? <AdminTracking setPage={setPage} /> : null,
+    team: isLeader ? <TeamPanel setPage={setPage} user={user} /> : null,
     dashboard: <Dashboard user={user} setPage={setPage} progress={progress} t={t} lang={lang} />,
     matcher: <Matcher t={t} lang={lang} setPage={setPage} setSelectedCompany={setSelectedCompany} />,
     companies: <Companies t={t} lang={lang} setPage={setPage} selectedCompany={selectedCompany} setSelectedCompany={setSelectedCompany} />,
@@ -106,6 +109,7 @@ function App() {
             </div>
           </div>
         </div>
+        {isLeader && user.role !== 'admin' && <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('team')} style={{padding:'9px 16px',border:'1px solid #8da588',borderRadius:7,background:'#eef4ea',cursor:'pointer'}}>👥 Mi equipo</button></div>}
         {user.role === "admin" && <div style={{padding:"4px 28px"}}><button onClick={() => setPage("admin")} style={{padding:"9px 16px",border:"1px solid #8da588",borderRadius:7,background:"#eef4ea",cursor:"pointer"}}>📊 Seguimiento de agentes</button></div>}
         {pages[page] || pages.dashboard}
       </div>
