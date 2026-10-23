@@ -80,7 +80,7 @@ AS $$
 WITH RECURSIVE downline(id,leader,depth,path) AS (
  SELECT a.agent_id,a.leader_id,1,ARRAY[auth.uid(),a.agent_id]::uuid[] FROM public.flc_team_assignments a WHERE a.leader_id=auth.uid()
  UNION ALL
- SELECT a.agent_id,a.leader_id,d.depth+1,d.path||a.agent_id FROM public.flc_team_assignments a JOIN downline d ON d.id=a.leader
+ SELECT a.agent_id,a.leader_id,d.depth+1,d.path||a.agent_id FROM public.flc_team_assignments a JOIN downline d ON d.id=a.leader_id
  WHERE d.depth<30 AND NOT a.agent_id=ANY(d.path)
 )
 SELECT p.id,p.full_name::text,d.leader,d.depth,
