@@ -39,6 +39,12 @@ function ProductionCenter({user,setPage}) {
  const teamIssued=paidRows.filter(x=>memberSet.has(x.agent_id)||memberSet.has(x.split_agent_id));
  const teamAP=teamSubmitted.reduce((n,x)=>n+teamCredit(x),0);
  const teamPaid=teamIssued.reduce((n,x)=>n+teamCredit(x),0);
+ const agentBreakdown=[user.id,...teamIds].filter((id,i,a)=>a.indexOf(id)===i).map(id=>{
+  const share=x=>Number(x.annual_premium)*(x.agent_id===id?Number(x.split_primary_pct)/100:x.split_agent_id===id?(100-Number(x.split_primary_pct))/100:0);
+  const submitted=monthRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
+  const issued=paidRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
+  return {id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||''),submitted:submitted.length,ap:submitted.reduce((n,x)=>n+share(x),0),issued:issued.length,paid:issued.reduce((n,x)=>n+share(x),0)};
+ }).filter(a=>a.submitted||a.issued).sort((a,b)=>b.ap-a.ap);
  const fmt=x=>Number(x).toLocaleString('en-US',{style:'currency',currency:'USD'});
  const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
@@ -80,6 +86,12 @@ function ProductionCenter({user,setPage}) {
  {metric('Pólizas Issue Paid del equipo',teamIssued.length)}
  {metric('AP del equipo · Issue Paid (incluye líder)',fmt(teamPaid))}
  </div>
+ <h4 style={{margin:'20px 0 10px'}}>Detalle por agente (AP acreditada)</h4>
+ <div style={{overflowX:'auto'}}>
+ <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+ <thead><tr>{['Agente','Pólizas sometidas','AP sometida','Pólizas Issue Paid','AP Issue Paid'].map(t=><th key={t} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{t}</th>)}</tr></thead>
+ <tbody>{agentBreakdown.map(a=><tr key={a.id}><td style={{padding:10,borderBottom:'1px solid #eee'}}>{a.name||'Agente del equipo'}</td><td>{a.submitted}</td><td>{fmt(a.ap)}</td><td>{a.issued}</td><td>{fmt(a.paid)}</td></tr>)}</tbody>
+ </table>{!agentBreakdown.length&&<p>Sin producción registrada para la estructura en este período.</p>}</div>
  {user.role==='admin'&&<p style={{fontSize:13,marginTop:12}}>Agencia · {monthRows.length} pólizas sometidas · {fmt(monthAP)} AP total · {fmt(paidAP)} Issue Paid reportada (sin duplicar splits).</p>}
  </React.Fragment>}
  {canViewTeam&&<p style={{fontSize:12,color:'#536454'}}>Diagnóstico de estructura: {teamIds.length} integrantes asignados; {rows.length} pólizas accesibles; {teamSubmitted.length} pólizas con participación del equipo en este mes.</p>}
