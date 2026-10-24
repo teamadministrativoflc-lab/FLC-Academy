@@ -86,12 +86,22 @@ AS $$
   WHERE (p_carrier IS NULL OR p_carrier='' OR s.carrier=p_carrier)
    AND ((s.submitted_on>=p_start AND s.submitted_on<=p_end)
     OR (s.issue_paid_on>=p_start AND s.issue_paid_on<=p_end))
+ ), participating AS (
+  -- Include every split participant in a policy touched by this structure.
+  -- AP credit still stays within the structure and is never duplicated.
+  SELECT DISTINCT c.scope,c.leader_id,p.agent_id,c.policy_id,c.submitted_on,
+   c.issue_paid_on,c.status,c.issue_paid_verified_at
+  FROM credited c
+  JOIN public.flc_policy_allocation p ON p.policy_id=c.policy_id
+ ), participant_counts AS (
+  SELECT scope,leader_id,
+   COUNT(DISTINCT agent_id) FILTER(WHERE submitted_on BETWEEN p_start AND p_end) AS submitting_agents,
+   COUNT(DISTINCT agent_id) FILTER(WHERE status='Issue Paid' AND issue_paid_verified_at IS NOT NULL AND issue_paid_on BETWEEN p_start AND p_end) AS verified_agents
+  FROM participating GROUP BY scope,leader_id
  ), aggregates AS (
   SELECT c.scope,c.leader_id,
    COALESCE(SUM(c.credit) FILTER(WHERE c.submitted_on BETWEEN p_start AND p_end),0) AS submitted_ap,
    COALESCE(SUM(c.credit) FILTER(WHERE c.status='Issue Paid' AND c.issue_paid_verified_at IS NOT NULL AND c.issue_paid_on BETWEEN p_start AND p_end),0) AS verified_ap,
-   COUNT(DISTINCT c.agent_id) FILTER(WHERE c.submitted_on BETWEEN p_start AND p_end AND c.credit>0) AS submitting_agents,
-   COUNT(DISTINCT c.agent_id) FILTER(WHERE c.status='Issue Paid' AND c.issue_paid_verified_at IS NOT NULL AND c.issue_paid_on BETWEEN p_start AND p_end AND c.credit>0) AS verified_agents,
    COUNT(DISTINCT c.policy_id) FILTER(WHERE c.submitted_on BETWEEN p_start AND p_end) AS submitted_policies,
    COUNT(DISTINCT c.policy_id) FILTER(WHERE c.status='Issue Paid' AND c.issue_paid_verified_at IS NOT NULL AND c.issue_paid_on BETWEEN p_start AND p_end) AS verified_policies,
    MAX(c.issue_paid_verified_at) FILTER(WHERE c.status='Issue Paid' AND c.issue_paid_verified_at IS NOT NULL AND c.issue_paid_on BETWEEN p_start AND p_end) AS verified_reached_at
@@ -99,16 +109,18 @@ AS $$
  )
  SELECT 'team'::text,l.id,l.name,l.depth,
   COALESCE(a.submitted_ap,0),COALESCE(a.verified_ap,0),
-  COALESCE(a.submitting_agents,0),COALESCE(a.verified_agents,0),
+  COALESCE(pc.submitting_agents,0),COALESCE(pc.verified_agents,0),
   COALESCE(a.submitted_policies,0),COALESCE(a.verified_policies,0),a.verified_reached_at
  FROM leaders l LEFT JOIN aggregates a ON a.scope='team' AND a.leader_id=l.id
+ LEFT JOIN participant_counts pc ON pc.scope='team' AND pc.leader_id=l.id
  WHERE auth.uid() IS NOT NULL AND (public.flc_is_admin() OR public.flc_is_team_leader())
  UNION ALL
  SELECT 'agency'::text,NULL::uuid,'Toda FLC'::text,-1,
   COALESCE(a.submitted_ap,0),COALESCE(a.verified_ap,0),
-  COALESCE(a.submitting_agents,0),COALESCE(a.verified_agents,0),
+  COALESCE(pc.submitting_agents,0),COALESCE(pc.verified_agents,0),
   COALESCE(a.submitted_policies,0),COALESCE(a.verified_policies,0),a.verified_reached_at
  FROM (SELECT 1) x LEFT JOIN aggregates a ON a.scope='agency'
+ LEFT JOIN participant_counts pc ON pc.scope='agency'
  WHERE auth.uid() IS NOT NULL AND public.flc_is_admin();
 $$;
 REVOKE ALL ON FUNCTION public.flc_period_team_metrics(date,date,text) FROM PUBLIC,anon;
