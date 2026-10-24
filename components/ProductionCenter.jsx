@@ -5,6 +5,7 @@ function ProductionCenter({user,setPage}) {
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',partners:[],primaryPct:'100',date:new Date().toISOString().slice(0,10),primary:''});
  const [period,setPeriod]=React.useState('2026-10');
  const [carrierFilter,setCarrierFilter]=React.useState('');
+ const [rankMode,setRankMode]=React.useState('verified_ap');
  const [structureFilter,setStructureFilter]=React.useState('');
  const [structureIds,setStructureIds]=React.useState([]);
  const [structureLoading,setStructureLoading]=React.useState(false);
@@ -111,6 +112,56 @@ function ProductionCenter({user,setPage}) {
   return (a.name||'').localeCompare(b.name||'','es');
  };
  const podium=agentBreakdown.filter(a=>a.verified>0).sort(rankAgents).slice(0,10);
+ const rankingTypes=[
+  {value:'verified_ap',label:'🏆 AP Issue Paid verificada',short:'AP Issue Paid verificada'},
+  {value:'policy_count',label:'📋 Pólizas sometidas',short:'Pólizas sometidas'},
+  {value:'submitted_ap',label:'💰 AP sometida',short:'AP sometida acreditada'},
+  {value:'effectiveness',label:'🎯 Efectividad de sometidas',short:'Efectividad verificada'}
+ ];
+ // Cohorte: pólizas sometidas en el mes seleccionado. Solo cuenta como
+ // conversión una póliza que finalmente obtuvo Issue Paid verificada.
+ const rankingRows=agentBreakdown.map(a=>{
+  const cohort=monthRows.filter(p=>participates(p,a.id));
+  const converted=cohort.filter(p=>p.status==='Issue Paid'&&!!p.issue_paid_verified_at);
+  return {...a,cohortCount:cohort.length,convertedCount:converted.length,
+   effectiveness:cohort.length?100*converted.length/cohort.length:0};
+ });
+ const selectedRanking=rankingTypes.find(t=>t.value===rankMode)||rankingTypes[0];
+ const rankingValue=a=>rankMode==='policy_count'?a.cohortCount:
+  rankMode==='submitted_ap'?a.ap:rankMode==='effectiveness'?a.effectiveness:a.verified;
+ const rankingValueText=a=>rankMode==='policy_count'?a.cohortCount.toLocaleString('en-US'):
+  rankMode==='effectiveness'?a.effectiveness.toFixed(1)+'%':fmt(rankingValue(a));
+ const rankingContext=a=>rankMode==='effectiveness'
+  ?a.convertedCount+' de '+a.cohortCount+' pólizas verificadas'
+  :rankMode==='verified_ap'?'⭐ '+legacyPoints(a.verified)+' Legacy Points'
+  :rankMode==='policy_count'?fmt(a.ap)+' de AP sometida acreditada'
+  :a.cohortCount+' pólizas sometidas';
+ const firstRecord=id=>{
+  const eligible=rankMode==='verified_ap'?verifiedRows:monthRows;
+  return eligible.filter(p=>participates(p,id))
+   .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))[0];
+ };
+ const rankedAgentRows=rankingRows.filter(a=>rankMode==='effectiveness'?a.cohortCount>0:rankingValue(a)>0)
+ .sort((a,b)=>{
+  const diff=rankingValue(b)-rankingValue(a);
+  if(Math.abs(diff)>0.000001)return diff>0?1:-1;
+  if(rankMode==='effectiveness'){
+   if(b.convertedCount!==a.convertedCount)return b.convertedCount-a.convertedCount;
+   if(b.cohortCount!==a.cohortCount)return b.cohortCount-a.cohortCount;
+  }else if(rankMode==='policy_count'){
+   if(Math.abs(b.ap-a.ap)>0.001)return b.ap-a.ap;
+  }else if(rankMode==='submitted_ap'){
+   if(b.cohortCount!==a.cohortCount)return b.cohortCount-a.cohortCount;
+  }
+  const pa=firstRecord(a.id),pb=firstRecord(b.id);
+  if(pa&&pb&&pa.id===pb.id){
+   if(pa.agent_id===a.id&&pa.agent_id!==b.id)return -1;
+   if(pa.agent_id===b.id&&pa.agent_id!==a.id)return 1;
+  }
+  const ta=pa?new Date(pa.created_at).getTime():Infinity;
+  const tb=pb?new Date(pb.created_at).getTime():Infinity;
+  return ta!==tb?ta-tb:(a.name||'').localeCompare(b.name||'','es');
+ }).slice(0,10);
  // Each leader report row represents that leader and every descendant.
  // Team ranking compares managers directly below the agency owner (depth 1).
  // Each manager's verified AP includes their own production and descendants.
@@ -206,19 +257,32 @@ function ProductionCenter({user,setPage}) {
  </div>
  {canViewTeam&&<section style={{marginTop:24,padding:18,border:'1px solid #c5d7c6',borderRadius:14,background:'#f9fbf8'}}>
   <h3 style={{margin:'0 0 6px'}}>🏆 Podio mensual de agentes</h3>
-  <p style={{fontSize:13,color:'#4a624f',margin:'0 0 16px'}}>Legacy Points: 1 por cada $100 de AP verificada, en puntos enteros. Clasificación por AP Issue Paid verificada · {period} · {carrierFilter||'Todas las compañías'}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}. Splits acreditados por porcentaje. Desempate: primer registro; en la misma póliza, agente principal.</p>
-  {podium.length?<React.Fragment>
-    <div style={{display:'grid',gridTemplateColumns:podium.length===1?'minmax(0,1fr)':podium.length===2?'repeat(2,minmax(0,1fr))':'repeat(3,minmax(0,1fr))',gap:10,alignItems:'end'}}>
-     {(podium.length===1?[0]:podium.length===2?[1,0]:[1,0,2]).filter(rank=>rank<podium.length).map(rank=>{const a=podium[rank];return <div key={rank} style={{minHeight:rank===0?155:126,background:rank===0?'#fff8e5':'#f0f4ef',border:'1px solid #d1dacd',borderRadius:12,padding:12,textAlign:'center',display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
-       <div style={{fontSize:26}}>{['🥇','🥈','🥉'][rank]}</div><strong style={{overflowWrap:'anywhere'}}>{a.name||'Agente del equipo'}</strong><div style={{fontWeight:800,fontSize:20,marginTop:7}}>{fmt(a.verified)}</div><div style={{color:'#226b3a',fontWeight:700,fontSize:13,marginTop:5}}>⭐ {legacyPoints(a.verified)} Legacy Points</div>
-     </div>;})}
-    </div>
-    <h4 style={{margin:'18px 0 8px'}}>Clasificación · Top 10</h4>
-    <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-    <thead><tr>{['Posición','Agente','AP Issue Paid verificada','Legacy Points'].map(v=><th key={v} style={{padding:9,textAlign:'left',borderBottom:'1px solid #d8e2d6'}}>{v}</th>)}</tr></thead>
-    <tbody>{podium.map((a,i)=><tr key={a.id}><td style={{padding:9,borderBottom:'1px solid #e1e8dd'}}>{i+1}</td><td>{a.name||'Agente del equipo'}</td><td style={{fontWeight:700}}>{fmt(a.verified)}</td><td style={{fontWeight:700,color:'#226b3a'}}>⭐ {legacyPoints(a.verified)}</td></tr>)}</tbody></table></div>
-   </React.Fragment>:<p>Sin pólizas Issue Paid verificadas para esta selección.</p>}
-  <p style={{fontSize:12,color:'#536454',marginTop:12}}>Solo participantes autorizados en esta vista. Una póliza compartida reparte su AP entre agentes; nunca se duplica la AP acreditada.</p>
+  <label style={{display:'flex',flexDirection:'column',gap:6,maxWidth:430,fontWeight:600,fontSize:13,marginBottom:12}}>Categoría del podio
+   <select value={rankMode} onChange={e=>setRankMode(e.target.value)} style={{padding:10,border:'1px solid #bed3bf',borderRadius:8,background:'#fff'}}>
+    {rankingTypes.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+   </select>
+  </label>
+  <p style={{fontSize:13,color:'#4a624f',margin:'0 0 16px'}}>
+   {rankMode==='verified_ap'?'Solo AP Issue Paid verificada por Administración. 1 Legacy Point por cada $100 de AP acreditada.':
+    rankMode==='policy_count'?'Cuenta cada póliza sometida en este mes por agente participante. En un split, cada participante cuenta una póliza, sin duplicar la AP.':
+    rankMode==='submitted_ap'?'Suma la AP sometida del mes, acreditada según los porcentajes de split. Es prima anualizada, no el valor nominal del seguro.':
+    'Efectividad por cohorte: pólizas sometidas en el mes seleccionado que llegaron a Issue Paid y fueron verificadas por Administración, divididas entre todas las sometidas de esa misma cohorte. Incluye verificaciones posteriores. Sin mínimo de pólizas; observa también el volumen.'}
+   {' · '+period+' · '+(carrierFilter||'Todas las compañías')}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}.
+   Desempate: primer registro; si es la misma póliza, agente principal.
+  </p>
+  {rankedAgentRows.length?<React.Fragment>
+   <div style={{display:'grid',gridTemplateColumns:rankedAgentRows.length===1?'minmax(0,1fr)':rankedAgentRows.length===2?'repeat(2,minmax(0,1fr))':'repeat(3,minmax(0,1fr))',gap:10,alignItems:'end'}}>
+    {(rankedAgentRows.length===1?[0]:rankedAgentRows.length===2?[1,0]:[1,0,2]).filter(rank=>rank<rankedAgentRows.length).map(rank=>{const a=rankedAgentRows[rank];return <div key={rank} style={{minHeight:rank===0?155:126,background:rank===0?'#fff8e5':'#f0f4ef',border:'1px solid #d1dacd',borderRadius:12,padding:12,textAlign:'center',display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+     <div style={{fontSize:26}}>{['🥇','🥈','🥉'][rank]}</div><strong style={{overflowWrap:'anywhere'}}>{a.name||'Agente del equipo'}</strong><div style={{fontWeight:800,fontSize:20,marginTop:7}}>{rankingValueText(a)}</div><div style={{color:'#226b3a',fontWeight:700,fontSize:13,marginTop:5}}>{rankingContext(a)}</div>
+    </div>;})}
+   </div>
+   <h4 style={{margin:'18px 0 8px'}}>Clasificación · Top 10</h4>
+   <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+    <thead><tr>{['Posición','Agente',selectedRanking.short,'Referencia'].map(v=><th key={v} style={{padding:9,textAlign:'left',borderBottom:'1px solid #d8e2d6'}}>{v}</th>)}</tr></thead>
+    <tbody>{rankedAgentRows.map((a,i)=><tr key={a.id}><td style={{padding:9,borderBottom:'1px solid #e1e8dd'}}>{i+1}</td><td>{a.name||'Agente del equipo'}</td><td style={{fontWeight:700}}>{rankingValueText(a)}</td><td style={{color:'#226b3a'}}>{rankingContext(a)}</td></tr>)}</tbody>
+   </table></div>
+  </React.Fragment>:<p>Sin producción que cumpla los criterios de esta categoría y período.</p>}
+  <p style={{fontSize:12,color:'#536454',marginTop:12}}>Solo agentes autorizados en esta vista. El ranking de equipos de managers directos se muestra por separado más abajo; sus estructuras incluyen producción personal y descendientes. Los Legacy Points oficiales siempre proceden de AP Issue Paid verificada.</p>
  </section>}
  <h4 style={{margin:'20px 0 10px'}}>Detalle por agente (AP acreditada)</h4>
  <div style={{overflowX:'auto'}}>
