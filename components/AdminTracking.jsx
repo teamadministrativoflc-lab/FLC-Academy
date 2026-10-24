@@ -6,6 +6,9 @@ function AdminTracking({setPage}) {
  const [inviting,setInviting]=React.useState(false);
  const [inviteFeedback,setInviteFeedback]=React.useState('');
  const [inviteSuccess,setInviteSuccess]=React.useState(false);
+ const [accessEmail,setAccessEmail]=React.useState('');
+ const [accessBusy,setAccessBusy]=React.useState(false);
+ const [accessMessage,setAccessMessage]=React.useState('');
  const invite=async(e)=>{
   e.preventDefault();
   if(inviting)return;
@@ -24,6 +27,21 @@ function AdminTracking({setPage}) {
    setInviteFeedback('No se pudo enviar la invitación. Comprueba que el correo sea nuevo y revisa los registros de la función en Supabase.');
    console.error('FLC invitation failed:',err);
   }finally{setInviting(false);}
+ };
+ const resendAccess=async(e)=>{
+  e.preventDefault();
+  if(accessBusy)return;
+  setAccessBusy(true);setAccessMessage('');
+  try{
+   const target=accessEmail.trim().toLowerCase();
+   const redirectTo='https://flc-academy.vercel.app/auth-setup.html';
+   const {error}=await window.flcSupabase.auth.resetPasswordForEmail(target,{redirectTo});
+   if(error)throw error;
+   setAccessMessage('Solicitud enviada. Si el correo corresponde a una cuenta existente, recibirá un enlace nuevo para establecer su contraseña. Revisa Spam.');
+  }catch(err){
+   setAccessMessage('No se pudo enviar el enlace. Comprueba la configuración de correo de Supabase o los límites de envío.');
+   console.error('FLC access recovery failed',err);
+  }finally{setAccessBusy(false);}
  };
  const moduleIds=['m1','m2','m3'];
  const tutorialCategories=window.TUTORIAL_CATEGORIES||[];
@@ -109,6 +127,17 @@ function AdminTracking({setPage}) {
      </div>
      <button type="submit" disabled={inviting} style={{background:'#143a1e',color:'#fff',borderRadius:7,padding:'12px 18px',marginTop:14,opacity:inviting?.65:1}}>{inviting?'Enviando…':'Enviar invitación'}</button>
      {inviteFeedback&&<p role="status" style={{color:inviteSuccess?'#2d6534':'#a33',marginBottom:0}}>{inviteFeedback}</p>}
+    </form>
+   </section>
+   <section style={{margin:'4px 0 24px',padding:18,border:'1px solid #dce5d8',borderRadius:10,background:'#fff',maxWidth:700}}>
+    <h2 style={{fontSize:19,margin:'0 0 8px'}}>Reenviar enlace de acceso</h2>
+    <p style={{fontSize:13,color:'#536454'}}>Para agentes que ya aparecen en Supabase pero tienen la invitación expirada o necesitan configurar su contraseña. No crea cuentas nuevas.</p>
+    <form onSubmit={resendAccess}>
+     <label>Correo de la cuenta existente
+      <input type="email" required maxLength={254} autoComplete="off" value={accessEmail} onChange={e=>setAccessEmail(e.target.value)} placeholder="agente@correo.com" style={{display:'block',width:'100%',padding:10,marginTop:6,border:'1px solid #ccd5c8',borderRadius:6}}/>
+     </label>
+     <button type="submit" disabled={accessBusy} style={{background:'#143a1e',color:'#fff',border:0,borderRadius:7,padding:'12px 18px',marginTop:12}}>{accessBusy?'Enviando…':'Enviar nuevo enlace de acceso'}</button>
+     {accessMessage&&<p role="status" style={{fontSize:13,marginTop:12}}>{accessMessage}</p>}
     </form>
    </section>
    <TeamAssignmentsAdmin />
