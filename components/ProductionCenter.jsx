@@ -115,7 +115,7 @@ function ProductionCenter({user,setPage}) {
  const rankingTypes=[
   {value:'verified_ap',label:'🏆 AP Issue Paid verificada',short:'AP Issue Paid verificada'},
   {value:'policy_count',label:'📋 Pólizas sometidas',short:'Pólizas sometidas'},
-  {value:'submitted_ap',label:'💰 AP sometida / inversión anualizada',short:'AP sometida acreditada'},
+  {value:'submitted_ap',label:'💰 AP sometida',short:'AP sometida acreditada'},
   {value:'effectiveness',label:'🎯 Efectividad de sometidas',short:'Efectividad verificada'}
  ];
  // Cohorte: pólizas sometidas en el mes seleccionado. Solo cuenta como
