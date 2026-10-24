@@ -137,8 +137,8 @@ function ProductionCenter({user,setPage}) {
   <p style={{fontSize:13,color:'#4a624f',margin:'0 0 16px'}}>Clasificación por AP Issue Paid verificada · {period} · {carrierFilter||'Todas las compañías'}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}. Splits acreditados por porcentaje. Desempate: primer registro; en la misma póliza, agente principal.</p>
   {podium.length?<React.Fragment>
     <div style={{display:'grid',gridTemplateColumns:podium.length===1?'minmax(0,1fr)':podium.length===2?'repeat(2,minmax(0,1fr))':'repeat(3,minmax(0,1fr))',gap:10,alignItems:'end'}}>
-     {(podium.length===1?[0]:podium.length===2?[1,0]:[1,0,2]).map((rank,index)=>{const a=podium[rank];return <div key={rank} style={{minHeight:index===1?155:126,background:index===1?'#fff8e5':'#f0f4ef',border:'1px solid #d1dacd',borderRadius:12,padding:12,textAlign:'center',display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
-       <div style={{fontSize:26}}>{['🥇','🥈','🥉'][rank]}</div><strong style={{overflowWrap:'anywhere'}}>{a?a.name||'Agente del equipo':'Sin clasificar'}</strong><div style={{fontWeight:800,fontSize:20,marginTop:7}}>{a?fmt(a.verified):'—'}</div>
+     {(podium.length===1?[0]:podium.length===2?[1,0]:[1,0,2]).filter(rank=>rank<podium.length).map(rank=>{const a=podium[rank];return <div key={rank} style={{minHeight:rank===0?155:126,background:rank===0?'#fff8e5':'#f0f4ef',border:'1px solid #d1dacd',borderRadius:12,padding:12,textAlign:'center',display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+       <div style={{fontSize:26}}>{['🥇','🥈','🥉'][rank]}</div><strong style={{overflowWrap:'anywhere'}}>{a.name||'Agente del equipo'}</strong><div style={{fontWeight:800,fontSize:20,marginTop:7}}>{fmt(a.verified)}</div>
      </div>;})}
     </div>
     <h4 style={{margin:'18px 0 8px'}}>Clasificación · Top 10</h4>
