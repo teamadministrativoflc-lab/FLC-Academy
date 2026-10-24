@@ -87,12 +87,12 @@ function ProductionCenter({user,setPage}) {
  };
  const podium=agentBreakdown.filter(a=>a.verified>0).sort(rankAgents).slice(0,10);
  // Each leader report row represents that leader and every descendant.
- // Team ranking uses top-level leaders only, so nested structures are never
- // displayed as independent additive teams.
+ // Team ranking compares managers directly below the agency owner (depth 1).
+ // Each manager's verified AP includes their own production and descendants.
  const visibleLeaders=leaderRows.filter(l=>user.role!=='admin'||!structureFilter||structureIds.includes(l.leader_id));
  const rankedLeaders=visibleLeaders.map(l=>({...l,verified:Number(verifiedLeaderRows.find(v=>v.leader_id===l.leader_id)?.paid_ap||0)}))
   .filter(l=>l.verified>0).sort((a,b)=>Math.round((b.verified-a.verified)*100)||(a.leader_name||'').localeCompare(b.leader_name||'','es'));
- const rankedTeams=rankedLeaders.filter(l=>Number(l.depth)===0);
+ const rankedTeams=rankedLeaders.filter(l=>Number(l.depth)===1);
  const fmt=x=>Number(x).toLocaleString('en-US',{style:'currency',currency:'USD'});
  const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
@@ -166,14 +166,14 @@ function ProductionCenter({user,setPage}) {
   <h3 style={{margin:'0 0 6px'}}>🏆 Ranking mensual de líderes y equipos</h3>
   <p style={{fontSize:13,color:'#4a624f'}}>AP Issue Paid verificada · {period} · {carrierFilter||'Todas las compañías'}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}. Cada cifra incluye al líder y sus descendientes; los splits respetan la participación acreditada.</p>
   {verifiedLeaderError?<p role="alert" style={{color:'#9a3c28'}}>{verifiedLeaderError}</p>:leaderError?<p role="alert" style={{color:'#9a3c28'}}>{leaderError}</p>:structureLoading?<p>Cargando clasificación de la estructura…</p>:<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16}}>
-  {[{title:'👑 Líderes y sublíderes · Top 10',items:rankedLeaders},{title:'👥 Equipos principales · Top 10',items:rankedTeams}].map(group=><div key={group.title} style={{background:'#fff',border:'1px solid #d9e7d7',borderRadius:10,padding:14}}>
+  {[{title:'👑 Líderes y sublíderes · Top 10',items:rankedLeaders},{title:'👥 Equipos de managers directos · Top 10',items:rankedTeams}].map(group=><div key={group.title} style={{background:'#fff',border:'1px solid #d9e7d7',borderRadius:10,padding:14}}>
    <h4 style={{margin:'0 0 12px'}}>{group.title}</h4>
    {group.items.length?<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
     <thead><tr><th style={{textAlign:'left',padding:8}}>Puesto</th><th style={{textAlign:'left',padding:8}}>Líder / equipo</th><th style={{textAlign:'right',padding:8}}>AP verificada</th></tr></thead>
     <tbody>{group.items.slice(0,10).map((l,i)=><tr key={l.leader_id}><td style={{padding:8,borderTop:'1px solid #edf1ea'}}>{['🥇','🥈','🥉'][i]||i+1}</td><td style={{padding:8,borderTop:'1px solid #edf1ea'}}>{l.leader_name}</td><td style={{padding:8,borderTop:'1px solid #edf1ea',textAlign:'right',fontWeight:700}}>{fmt(l.verified)}</td></tr>)}</tbody>
    </table></div>:<p style={{fontSize:13,color:'#536454'}}>Sin estructuras con AP Issue Paid verificada en este período.</p>}
   </div>)}</div>}
-  <p style={{fontSize:12,color:'#536454',margin:'12px 0 0'}}>Ranking de líderes: incluye estructuras anidadas que pueden superponerse. Ranking de equipos: solo líderes principales. No sumes las filas para calcular la AP total de la agencia. Ante igual AP, el orden entre estructuras es alfabético provisional.</p>
+  <p style={{fontSize:12,color:'#536454',margin:'12px 0 0'}}>Ranking de líderes: incluye estructuras anidadas que pueden superponerse. Ranking de equipos: managers de nivel 1 con todos sus descendientes, sin incluir la estructura general de la agencia (nivel 0). No sumes las filas del ranking de líderes para calcular la AP total de la agencia. Ante igual AP, el orden entre estructuras es alfabético provisional.</p>
  </section>
  <h4 style={{margin:'20px 0 10px'}}>Producción por líder y sublíder</h4>
  {leaderError?<p style={{color:'#9a3c28'}}>{leaderError}</p>:<div style={{overflowX:'auto'}}>
