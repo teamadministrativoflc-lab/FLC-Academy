@@ -3,6 +3,7 @@ function ProductionCenter({user,setPage}) {
  const carriers=['National Life Group','F&G','Foresters','American Amicable','Transamerica','Mutual of Omaha','Aetna','Americo','Lincoln Heritage','Occidental','Corebridge','Athene','Otro'];
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',split:'',pct:'50',date:new Date().toISOString().slice(0,10),primary:''});
+ const [period,setPeriod]=React.useState('2026-10');
  const [editing,setEditing]=React.useState(null),[statusSaving,setStatusSaving]=React.useState(false);
  const [form,setForm]=React.useState(blank),[agents,setAgents]=React.useState([]),[rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(true),[saving,setSaving]=React.useState(false),[error,setError]=React.useState(''),[notice,setNotice]=React.useState(''),[tab,setTab]=React.useState('list');
  const load=async()=>{setBusy(true);setError('');const {data,error}=await window.flcSupabase.from('flc_policy_sales').select('id,agent_id,client_name,carrier,product_type,policy_number,lead_source,status,annual_premium,split_agent_id,split_primary_pct,submitted_on,approved_on,issue_paid_on,created_at').order('created_at',{ascending:false}).limit(250);if(error){setError('El registro aún no está habilitado en Supabase o no tienes acceso.');}else setRows(data||[]);setBusy(false);};
