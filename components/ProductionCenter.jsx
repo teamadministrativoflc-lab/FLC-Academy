@@ -102,7 +102,7 @@ function ProductionCenter({user,setPage}) {
  {leaderError?<p style={{color:'#9a3c28'}}>{leaderError}</p>:<div style={{overflowX:'auto'}}>
  <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
  <thead><tr>{['Líder / estructura','Pólizas sometidas','AP sometida','Pólizas Issue Paid','AP Issue Paid'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{x}</th>)}</tr></thead>
- <tbody>{leaderRows.map(a=><tr key={a.leader_id}><td style={{padding:10,borderBottom:'1px solid #eee'}}>{a.depth===0?'👥 ': '↳ '}{a.leader_name}</td><td>{a.policy_count||0}</td><td>{fmt(a.submitted_ap||0)}</td><td>{a.paid_count||0}</td><td>{fmt(a.paid_ap||0)}</td></tr>)}</tbody></table>
+ <tbody>{leaderRows.map(a=><tr key={a.leader_id}><td style={{padding:10,borderBottom:'1px solid #eee'}}><span style={{display:'inline-block',paddingLeft:Math.max(0,Number(a.depth)||0)*20}}>{Number(a.depth)===0?'👥 ': '↳ '}{a.leader_name} <small style={{color:'#647568'}}>{Number(a.depth)===0?'(líder principal)':'(nivel '+a.depth+')'}</small></span></td><td>{a.policy_count||0}</td><td>{fmt(a.submitted_ap||0)}</td><td>{a.paid_count||0}</td><td>{fmt(a.paid_ap||0)}</td></tr>)}</tbody></table>
  {!leaderRows.length&&<p>No hay estructuras de líderes para mostrar.</p>}</div>}
  <p style={{fontSize:12,color:'#536454'}}>Las estructuras de un líder y sus sublíderes se superponen. No sumes las filas entre sí. Cada fila incluye al líder y todos sus descendientes.</p>
  {user.role==='admin'&&<p style={{fontSize:13,marginTop:12}}>Agencia · {monthRows.length} pólizas sometidas · {fmt(monthAP)} AP total · {fmt(paidAP)} Issue Paid reportada (sin duplicar splits).</p>}
