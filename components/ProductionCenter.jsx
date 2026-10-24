@@ -8,6 +8,13 @@ function ProductionCenter({user,setPage}) {
  const [form,setForm]=React.useState(blank),[agents,setAgents]=React.useState([]),[rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(true),[saving,setSaving]=React.useState(false),[error,setError]=React.useState(''),[notice,setNotice]=React.useState(''),[tab,setTab]=React.useState('list');
  const load=async()=>{setBusy(true);setError('');const {data,error}=await window.flcSupabase.from('flc_policy_sales').select('id,agent_id,client_name,carrier,product_type,policy_number,lead_source,status,annual_premium,split_agent_id,split_primary_pct,submitted_on,approved_on,issue_paid_on,created_at').order('created_at',{ascending:false}).limit(250);if(error){setError('El registro aún no está habilitado en Supabase o no tienes acceso.');}else setRows(data||[]);setBusy(false);};
  React.useEffect(()=>{load();const fetchAgents=async()=>{const {data}=await window.flcSupabase.rpc('flc_admin_team_roster');if(user.role==='admin'&&data)setAgents(data);};fetchAgents();},[user.id]);
+ const monthRows=rows.filter(x=>x.submitted_on&&x.submitted_on.slice(0,7)===period);
+ const monthAP=monthRows.reduce((n,x)=>n+Number(x.annual_premium),0);
+ const paidRows=rows.filter(x=>x.status==='Issue Paid'&&x.issue_paid_on&&x.issue_paid_on.slice(0,7)===period);
+ const paidAP=paidRows.reduce((n,x)=>n+Number(x.annual_premium),0);
+ const myCredit=x=>Number(x.annual_premium)*(x.agent_id===user.id?Number(x.split_primary_pct)/100:x.split_agent_id===user.id?(100-Number(x.split_primary_pct))/100:0);
+ const myAP=monthRows.reduce((n,x)=>n+myCredit(x),0);
+ const myPaid=paidRows.reduce((n,x)=>n+myCredit(x),0);
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
  const inp={padding:10,border:'1px solid #ccd8cd',borderRadius:7,width:'100%',fontSize:14,background:'#fff'};
  const change=(k,v)=>setForm(x=>({...x,[k]:v}));
