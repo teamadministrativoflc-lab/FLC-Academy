@@ -19,7 +19,7 @@ function ProductionCenter({user,setPage}) {
    const {data:isLeader}=await window.flcSupabase.rpc('flc_is_team_leader');
    if(isLeader){
     const {data,error}=await window.flcSupabase.rpc('flc_my_team_report');
-    if(!error){setTeamIds((data||[]).map(a=>a.agent_id));setCanViewTeam(true);}
+    if(!error){setTeamIds((data||[]).map(a=>a.agent_id));setAgents(data||[]);setCanViewTeam(true);}
    }else{setCanViewTeam(false);setTeamIds([]);}
   }
  };fetchTeam();},[user.id]);
