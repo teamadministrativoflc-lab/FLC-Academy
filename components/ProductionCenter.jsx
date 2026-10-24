@@ -289,7 +289,7 @@ function ProductionCenter({user,setPage}) {
  :await window.flcSupabase.rpc(user.role==='admin'?'flc_admin_create_policy':'flc_create_policy',{...params,p_split_agent_id:form.partners[0]?.agentId||null,p_split_primary_pct:Number(form.primaryPct),...(user.role==='admin'?{p_agent_id:primaryAgent}:{})});
  setSaving(false);
  if(error){setError(error.code==='23505'?'Ya hay una póliza registrada con ese número y compañía.':error.message||'No se pudo guardar.');return;}
- setNotice('Póliza registrada. Queda en estado Sometida hasta la validación administrativa.');setForm(blank());setTab('list');await load();};
+ setNotice('Póliza registrada. Queda en estado Sometida hasta la validación administrativa.');setForm(blank());setTab('list');await load();window.dispatchEvent(new Event('flc:new-sale'));};
  const splitDisplay=r=>{const shares=allocations(r);if(shares.length<=1)return '—';
   return shares.map(s=>{const name=s.full_name||(s.agent_id===user.id?user.name:(agents.find(a=>a.id===s.agent_id)||splitPartners.find(a=>a.id===s.agent_id))?.full_name)||'Agente';
    return name+': '+Number(s.pct).toLocaleString('en-US')+'% ('+fmt(Number(r.annual_premium)*Number(s.pct)/100)+')';
