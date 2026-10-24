@@ -13,6 +13,9 @@ function ProductionCenter({user,setPage}) {
  const [participantNames,setParticipantNames]=React.useState({});
  const [leaderRows,setLeaderRows]=React.useState([]);
  const [verifiedLeaderRows,setVerifiedLeaderRows]=React.useState([]);
+ const [verifiedLeaderError,setVerifiedLeaderError]=React.useState('');
+ const [rankTimes,setRankTimes]=React.useState({});
+ const [rankTimesError,setRankTimesError]=React.useState('');
  const [leaderError,setLeaderError]=React.useState('');
  const [canViewTeam,setCanViewTeam]=React.useState(user.role==='admin');
  const [verificationBusy,setVerificationBusy]=React.useState(false);
@@ -40,7 +43,15 @@ function ProductionCenter({user,setPage}) {
  if(!active)return;if(error){setLeaderError('Falta habilitar el reporte de líderes en Supabase.');setLeaderRows([]);}else{setLeaderError('');setLeaderRows(data||[]);}
  });return()=>{active=false;};},[canViewTeam,period,carrierFilter,user.id]);
  React.useEffect(()=>{let active=true;setStructureError('');if(user.role!=='admin'||!structureFilter){setStructureIds([]);setStructureLoading(false);return;}setStructureLoading(true);window.flcSupabase.rpc('flc_admin_structure_member_ids',{p_leader_id:structureFilter}).then(({data,error})=>{if(!active)return;setStructureLoading(false);if(error){setStructureIds([]);setStructureError('No se pudo cargar la estructura. Ejecuta el archivo SQL 012 en Supabase.');}else setStructureIds((data||[]).map(x=>x.agent_id));});return()=>{active=false;};},[structureFilter,user.id]);
- React.useEffect(()=>{let active=true;if(!canViewTeam)return;window.flcSupabase.rpc('flc_leader_verified_production_report',{p_month:period,p_carrier:carrierFilter||null}).then(({data,error})=>{if(active)setVerifiedLeaderRows(error?[]:data||[]);});return()=>{active=false;};},[canViewTeam,period,carrierFilter,user.id]);
+ React.useEffect(()=>{let active=true;if(!canViewTeam)return;window.flcSupabase.rpc('flc_leader_verified_production_report',{p_month:period,p_carrier:carrierFilter||null}).then(({data,error})=>{if(!active)return;setVerifiedLeaderError(error?'No se pudo cargar la AP verificada de líderes. Reintenta antes de consultar el ranking.':'');setVerifiedLeaderRows(error?[]:data||[]);});return()=>{active=false;};},[canViewTeam,period,carrierFilter,user.id]);
+ React.useEffect(()=>{let active=true;if(!canViewTeam)return;
+  setRankTimes({});setRankTimesError('');
+  window.flcSupabase.rpc('flc_leader_verified_rank_times',{p_month:period,p_carrier:carrierFilter||null}).then(({data,error})=>{
+   if(!active)return;
+   if(error){setRankTimesError('No se pudo consultar el desempate (SQL 017).'+(user.role==='admin'?' Código: '+(error.code||'desconocido')+' · '+(error.message||'sin detalle'):' Contacta a Administración.'));return;}
+   setRankTimes(Object.fromEntries((data||[]).map(x=>[x.leader_id,x.reached_at])));
+  });return()=>{active=false;};
+ },[canViewTeam,period,carrierFilter,user.id]);
  const filteredRows=rows.filter(x=>!carrierFilter||x.carrier===carrierFilter);
  const monthRows=filteredRows.filter(x=>x.submitted_on&&x.submitted_on.slice(0,7)===period);
  const monthAP=monthRows.reduce((n,x)=>n+Number(x.annual_premium),0);
@@ -85,6 +96,20 @@ function ProductionCenter({user,setPage}) {
   return (a.name||'').localeCompare(b.name||'','es');
  };
  const podium=agentBreakdown.filter(a=>a.verified>0).sort(rankAgents).slice(0,10);
+ // Each leader report row represents that leader and every descendant.
+ // Team ranking compares managers directly below the agency owner (depth 1).
+ // Each manager's verified AP includes their own production and descendants.
+ const visibleLeaders=leaderRows.filter(l=>user.role!=='admin'||!structureFilter||structureIds.includes(l.leader_id));
+ const rankedLeaders=visibleLeaders.map(l=>({...l,verified:Number(verifiedLeaderRows.find(v=>v.leader_id===l.leader_id)?.paid_ap||0)}))
+  .filter(l=>l.verified>0).sort((a,b)=>{
+   const apDiff=Math.round((b.verified-a.verified)*100);
+   if(apDiff)return apDiff;
+   const timeA=rankTimes[a.leader_id]?new Date(rankTimes[a.leader_id]).getTime():Infinity;
+   const timeB=rankTimes[b.leader_id]?new Date(rankTimes[b.leader_id]).getTime():Infinity;
+   if(timeA!==timeB)return timeA-timeB;
+   return (a.leader_name||'').localeCompare(b.leader_name||'','es');
+  });
+ const rankedTeams=rankedLeaders.filter(l=>Number(l.depth)===1);
  const fmt=x=>Number(x).toLocaleString('en-US',{style:'currency',currency:'USD'});
  const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
@@ -154,6 +179,20 @@ function ProductionCenter({user,setPage}) {
  <thead><tr>{['Agente','Pólizas sometidas','AP sometida','Pólizas Issue Paid','AP Issue Paid','AP verificada'].map(t=><th key={t} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{t}</th>)}</tr></thead>
  <tbody>{agentBreakdown.map(a=><tr key={a.id}><td style={{padding:10,borderBottom:'1px solid #eee'}}>{a.name||'Agente del equipo'}</td><td>{a.submitted}</td><td>{fmt(a.ap)}</td><td>{a.issued}</td><td>{fmt(a.paid)}</td><td>{fmt(a.verified)}</td></tr>)}</tbody>
  </table>{!agentBreakdown.length&&<p>Sin producción registrada para la estructura en este período.</p>}</div>
+ <section style={{marginTop:24,padding:18,border:'1px solid #c5d7c6',borderRadius:14,background:'#f9fbf8'}}>
+  <h3 style={{margin:'0 0 6px'}}>🏆 Ranking mensual de líderes y equipos</h3>
+  <p style={{fontSize:13,color:'#4a624f'}}>AP Issue Paid verificada · {period} · {carrierFilter||'Todas las compañías'}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}. Cada cifra incluye al líder y sus descendientes; los splits respetan la participación acreditada.</p>
+  {rankTimesError&&<p role="alert" style={{color:'#9a3c28'}}>{rankTimesError}</p>}
+  {verifiedLeaderError?<p role="alert" style={{color:'#9a3c28'}}>{verifiedLeaderError}</p>:leaderError?<p role="alert" style={{color:'#9a3c28'}}>{leaderError}</p>:structureLoading?<p>Cargando clasificación de la estructura…</p>:<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16}}>
+  {[{title:'👑 Líderes y sublíderes · Top 10',items:rankedLeaders},{title:'👥 Equipos de managers directos · Top 10',items:rankedTeams}].map(group=><div key={group.title} style={{background:'#fff',border:'1px solid #d9e7d7',borderRadius:10,padding:14}}>
+   <h4 style={{margin:'0 0 12px'}}>{group.title}</h4>
+   {group.items.length?<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+    <thead><tr><th style={{textAlign:'left',padding:8}}>Puesto</th><th style={{textAlign:'left',padding:8}}>Líder / equipo</th><th style={{textAlign:'right',padding:8}}>AP verificada</th></tr></thead>
+    <tbody>{group.items.slice(0,10).map((l,i)=><tr key={l.leader_id}><td style={{padding:8,borderTop:'1px solid #edf1ea'}}>{['🥇','🥈','🥉'][i]||i+1}</td><td style={{padding:8,borderTop:'1px solid #edf1ea'}}>{l.leader_name}</td><td style={{padding:8,borderTop:'1px solid #edf1ea',textAlign:'right',fontWeight:700}}>{fmt(l.verified)}</td></tr>)}</tbody>
+   </table></div>:<p style={{fontSize:13,color:'#536454'}}>Sin estructuras con AP Issue Paid verificada en este período.</p>}
+  </div>)}</div>}
+  <p style={{fontSize:12,color:'#536454',margin:'12px 0 0'}}>Ranking de líderes: incluye estructuras anidadas que pueden superponerse. Ranking de equipos: managers de nivel 1 con todos sus descendientes, sin incluir la estructura general de la agencia (nivel 0). No sumes las filas del ranking de líderes para calcular la AP total de la agencia. Ante igual AP, gana la estructura que completó primero su AP verificada (última verificación del total). Si ambos momentos son idénticos, se aplica orden alfabético técnico. El desempate por tiempo requiere SQL 017 activo.</p>
+ </section>
  <h4 style={{margin:'20px 0 10px'}}>Producción por líder y sublíder</h4>
  {leaderError?<p style={{color:'#9a3c28'}}>{leaderError}</p>:<div style={{overflowX:'auto'}}>
  <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
