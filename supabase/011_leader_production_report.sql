@@ -11,6 +11,16 @@ AS $$
   SELECT a.agent_id,v.depth+1,v.trail||a.agent_id
   FROM visible v JOIN public.flc_team_assignments a ON a.leader_id=v.id
   WHERE NOT a.agent_id=ANY(v.trail)
+ ), admin_roots AS (
+  SELECT l.agent_id AS id,0 AS depth,ARRAY[l.agent_id]::uuid[] AS trail
+  FROM public.flc_team_leaders l
+  WHERE NOT EXISTS(SELECT 1 FROM public.flc_team_assignments a WHERE a.agent_id=l.agent_id)
+ ), admin_tree AS (
+  SELECT id,depth,trail FROM admin_roots
+  UNION ALL
+  SELECT a.agent_id,t.depth+1,t.trail||a.agent_id
+  FROM admin_tree t JOIN public.flc_team_assignments a ON a.leader_id=t.id
+  WHERE NOT a.agent_id=ANY(t.trail)
  ), leader_scope AS (
   SELECT l.agent_id AS leader_id, 0 AS depth FROM public.flc_team_leaders l
   WHERE public.flc_is_admin() OR l.agent_id=auth.uid()
@@ -32,8 +42,10 @@ AS $$
   WHERE p_carrier IS NULL OR p_carrier='' OR s.carrier=p_carrier
  )
  SELECT ls.leader_id,p.full_name::text,
-  CASE WHEN ls.leader_id=auth.uid() THEN 0
-       ELSE (SELECT v.depth FROM visible v WHERE v.id=ls.leader_id LIMIT 1) END AS depth,
+  CASE WHEN public.flc_is_admin()
+       THEN COALESCE((SELECT MIN(t.depth) FROM admin_tree t WHERE t.id=ls.leader_id),0)
+       WHEN ls.leader_id=auth.uid() THEN 0
+       ELSE (SELECT MIN(v.depth) FROM visible v WHERE v.id=ls.leader_id) END AS depth,
   COUNT(DISTINCT c.id) FILTER(WHERE to_char(c.submitted_on,'YYYY-MM')=p_month),
   COALESCE(SUM(c.credit) FILTER(WHERE to_char(c.submitted_on,'YYYY-MM')=p_month),0),
   COUNT(DISTINCT c.id) FILTER(WHERE c.status='Issue Paid' AND to_char(c.issue_paid_on,'YYYY-MM')=p_month),
