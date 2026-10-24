@@ -68,6 +68,7 @@ function ProductionCenter({user,setPage}) {
   const verified=verifiedRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
   return {id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||''),submitted:submitted.length,ap:submitted.reduce((n,x)=>n+share(x),0),issued:issued.length,paid:issued.reduce((n,x)=>n+share(x),0),verified:verified.reduce((n,x)=>n+share(x),0)};
  }).filter(a=>a.submitted||a.issued).sort((a,b)=>b.ap-a.ap);
+ const podium=agentBreakdown.filter(a=>a.verified>0).sort((a,b)=>b.verified-a.verified||a.name.localeCompare(b.name,'es')).slice(0,10);
  const fmt=x=>Number(x).toLocaleString('en-US',{style:'currency',currency:'USD'});
  const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
@@ -115,6 +116,22 @@ function ProductionCenter({user,setPage}) {
  {metric('AP del equipo · Issue Paid (incluye líder)',fmt(teamPaid))}
  {metric('AP del equipo · Issue Paid verificada',fmt(teamVerified))}
  </div>
+ {canViewTeam&&<section style={{marginTop:24,padding:18,border:'1px solid #c5d7c6',borderRadius:14,background:'#f9fbf8'}}>
+  <h3 style={{margin:'0 0 6px'}}>🏆 Podio mensual de agentes</h3>
+  <p style={{fontSize:13,color:'#4a624f',margin:'0 0 16px'}}>Clasificación por AP Issue Paid verificada · {period} · {carrierFilter||'Todas las compañías'}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}. Splits acreditados por porcentaje.</p>
+  {podium.length?<React.Fragment>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10,alignItems:'end'}}>
+     {[1,0,2].map((rank,index)=>{const a=podium[rank];return <div key={rank} style={{minHeight:index===1?155:126,background:index===1?'#fff8e5':'#f0f4ef',border:'1px solid #d1dacd',borderRadius:12,padding:12,textAlign:'center',display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+       <div style={{fontSize:26}}>{['🥇','🥈','🥉'][rank]}</div><strong style={{overflowWrap:'anywhere'}}>{a?a.name||'Agente del equipo':'Sin clasificar'}</strong><div style={{fontWeight:800,fontSize:20,marginTop:7}}>{a?fmt(a.verified):'—'}</div>
+     </div>;})}
+    </div>
+    <h4 style={{margin:'18px 0 8px'}}>Clasificación · Top 10</h4>
+    <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+    <thead><tr>{['Posición','Agente','AP Issue Paid verificada'].map(v=><th key={v} style={{padding:9,textAlign:'left',borderBottom:'1px solid #d8e2d6'}}>{v}</th>)}</tr></thead>
+    <tbody>{podium.map((a,i)=><tr key={a.id}><td style={{padding:9,borderBottom:'1px solid #e1e8dd'}}>{i+1}</td><td>{a.name||'Agente del equipo'}</td><td style={{fontWeight:700}}>{fmt(a.verified)}</td></tr>)}</tbody></table></div>
+   </React.Fragment>:<p>Sin pólizas Issue Paid verificadas para esta selección.</p>}
+  <p style={{fontSize:12,color:'#536454',marginTop:12}}>Solo participantes autorizados en esta vista. Una póliza compartida reparte su AP entre agentes; nunca se duplica la AP acreditada.</p>
+ </section>}
  <h4 style={{margin:'20px 0 10px'}}>Detalle por agente (AP acreditada)</h4>
  <div style={{overflowX:'auto'}}>
  <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
