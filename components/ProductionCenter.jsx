@@ -5,10 +5,24 @@ function ProductionCenter({user,setPage}) {
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',split:'',pct:'50',date:new Date().toISOString().slice(0,10),primary:''});
  const [period,setPeriod]=React.useState('2026-10');
  const [carrierFilter,setCarrierFilter]=React.useState('');
+ const [teamIds,setTeamIds]=React.useState([]);
+ const [canViewTeam,setCanViewTeam]=React.useState(user.role==='admin');
  const [editing,setEditing]=React.useState(null),[statusSaving,setStatusSaving]=React.useState(false);
  const [form,setForm]=React.useState(blank),[agents,setAgents]=React.useState([]),[rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(true),[saving,setSaving]=React.useState(false),[error,setError]=React.useState(''),[notice,setNotice]=React.useState(''),[tab,setTab]=React.useState('list');
  const load=async()=>{setBusy(true);setError('');const {data,error}=await window.flcSupabase.from('flc_policy_sales').select('id,agent_id,client_name,carrier,product_type,policy_number,lead_source,status,annual_premium,split_agent_id,split_primary_pct,submitted_on,approved_on,issue_paid_on,created_at').order('created_at',{ascending:false}).limit(250);if(error){setError('El registro aún no está habilitado en Supabase o no tienes acceso.');}else setRows(data||[]);setBusy(false);};
- React.useEffect(()=>{load();const fetchAgents=async()=>{const {data}=await window.flcSupabase.rpc('flc_admin_team_roster');if(user.role==='admin'&&data)setAgents(data);};fetchAgents();},[user.id]);
+ React.useEffect(()=>{load();const fetchTeam=async()=>{
+  if(user.role==='admin'){
+   const {data}=await window.flcSupabase.rpc('flc_admin_team_roster');
+   if(data){setAgents(data);setTeamIds(data.map(a=>a.id));}
+   setCanViewTeam(true);
+  }else{
+   const {data:isLeader}=await window.flcSupabase.rpc('flc_is_team_leader');
+   if(isLeader){
+    const {data,error}=await window.flcSupabase.rpc('flc_my_team_report');
+    if(!error){setTeamIds((data||[]).map(a=>a.agent_id));setCanViewTeam(true);}
+   }else{setCanViewTeam(false);setTeamIds([]);}
+  }
+ };fetchTeam();},[user.id]);
  const filteredRows=rows.filter(x=>!carrierFilter||x.carrier===carrierFilter);
  const monthRows=filteredRows.filter(x=>x.submitted_on&&x.submitted_on.slice(0,7)===period);
  const monthAP=monthRows.reduce((n,x)=>n+Number(x.annual_premium),0);
