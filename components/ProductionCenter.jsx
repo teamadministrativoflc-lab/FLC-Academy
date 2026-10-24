@@ -131,12 +131,14 @@ function ProductionCenter({user,setPage}) {
  const teamAP=teamSubmitted.reduce((n,x)=>n+teamCredit(x),0);
  const teamPaid=teamIssued.reduce((n,x)=>n+teamCredit(x),0);
  const teamVerified=verifiedRows.reduce((n,x)=>n+teamCredit(x),0);
+ const creditedNames={};
+ Object.values(policyCredits).forEach(shares=>shares.forEach(a=>{if(a.full_name)creditedNames[a.agent_id]=a.full_name;}));
  const agentBreakdown=(user.role==='admin'&&structureFilter?structureIds:[user.id,...teamIds]).filter((id,i,a)=>a.indexOf(id)===i).map(id=>{
   const share=x=>creditFor(x,id);
   const submitted=monthRows.filter(x=>participates(x,id));
   const issued=paidRows.filter(x=>participates(x,id));
   const verified=verifiedRows.filter(x=>participates(x,id));
-  return {id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||''),submitted:submitted.length,ap:submitted.reduce((n,x)=>n+share(x),0),issued:issued.length,paid:issued.reduce((n,x)=>n+share(x),0),verified:verified.reduce((n,x)=>n+share(x),0)};
+  return {id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||creditedNames[id]||''),submitted:submitted.length,ap:submitted.reduce((n,x)=>n+share(x),0),issued:issued.length,paid:issued.reduce((n,x)=>n+share(x),0),verified:verified.reduce((n,x)=>n+share(x),0)};
  }).filter(a=>a.submitted||a.issued).sort((a,b)=>b.ap-a.ap);
  // First compare credited verified AP, then earliest server-created policy.
  // For two agents tied on the same verified policy, its principal wins.
@@ -178,7 +180,7 @@ function ProductionCenter({user,setPage}) {
  Object.keys(spendByAgent).forEach(id=>{if(knownAgentIds.has(id))return;
   const allowed=user.role==='admin'&&structureFilter?structureIds:[user.id,...teamIds];
   if(!allowed.includes(id))return;
-  rankingRows.push({id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||splitPartners.find(a=>a.id===id)?.full_name||'Agente'),investment:spendByAgent[id],providers:[...providersByAgent[id]],verified:0,ap:0,cohortCount:0,convertedCount:0,effectiveness:0});
+  rankingRows.push({id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||splitPartners.find(a=>a.id===id)?.full_name||creditedNames[id]||'Agente'),investment:spendByAgent[id],providers:[...providersByAgent[id]],verified:0,ap:0,cohortCount:0,convertedCount:0,effectiveness:0});
  });
  const eligibleTeams=periodTeams.filter(t=>t.scope==='team'&&Number(t.depth)===1);
  const teamAverageRows=eligibleTeams.map(t=>({...t,id:t.leader_id,name:t.leader_name,
