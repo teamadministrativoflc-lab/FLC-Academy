@@ -4,13 +4,15 @@ function ProductionCenter({user,setPage}) {
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',split:'',pct:'50',date:new Date().toISOString().slice(0,10),primary:''});
  const [period,setPeriod]=React.useState('2026-10');
+ const [carrierFilter,setCarrierFilter]=React.useState('');
  const [editing,setEditing]=React.useState(null),[statusSaving,setStatusSaving]=React.useState(false);
  const [form,setForm]=React.useState(blank),[agents,setAgents]=React.useState([]),[rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(true),[saving,setSaving]=React.useState(false),[error,setError]=React.useState(''),[notice,setNotice]=React.useState(''),[tab,setTab]=React.useState('list');
  const load=async()=>{setBusy(true);setError('');const {data,error}=await window.flcSupabase.from('flc_policy_sales').select('id,agent_id,client_name,carrier,product_type,policy_number,lead_source,status,annual_premium,split_agent_id,split_primary_pct,submitted_on,approved_on,issue_paid_on,created_at').order('created_at',{ascending:false}).limit(250);if(error){setError('El registro aún no está habilitado en Supabase o no tienes acceso.');}else setRows(data||[]);setBusy(false);};
  React.useEffect(()=>{load();const fetchAgents=async()=>{const {data}=await window.flcSupabase.rpc('flc_admin_team_roster');if(user.role==='admin'&&data)setAgents(data);};fetchAgents();},[user.id]);
- const monthRows=rows.filter(x=>x.submitted_on&&x.submitted_on.slice(0,7)===period);
+ const filteredRows=rows.filter(x=>!carrierFilter||x.carrier===carrierFilter);
+ const monthRows=filteredRows.filter(x=>x.submitted_on&&x.submitted_on.slice(0,7)===period);
  const monthAP=monthRows.reduce((n,x)=>n+Number(x.annual_premium),0);
- const paidRows=rows.filter(x=>x.status==='Issue Paid'&&x.issue_paid_on&&x.issue_paid_on.slice(0,7)===period);
+ const paidRows=filteredRows.filter(x=>x.status==='Issue Paid'&&x.issue_paid_on&&x.issue_paid_on.slice(0,7)===period);
  const paidAP=paidRows.reduce((n,x)=>n+Number(x.annual_premium),0);
  const myCredit=x=>Number(x.annual_premium)*(x.agent_id===user.id?Number(x.split_primary_pct)/100:x.split_agent_id===user.id?(100-Number(x.split_primary_pct))/100:0);
  const myAP=monthRows.reduce((n,x)=>n+myCredit(x),0);
@@ -33,15 +35,22 @@ function ProductionCenter({user,setPage}) {
  setNotice('Póliza registrada. Queda en estado Sometida hasta la validación administrativa.');setForm(blank());setTab('list');await load();};
  return <div style={{padding:28,maxWidth:1250,margin:'auto'}}>
  <button onClick={()=>setPage('dashboard')}>← Inicio</button><h1>FLC Production Center</h1><p>Registra pólizas, consulta su estado y lleva control de splits. El agente principal puede actualizar estados de sus pólizas; Administración puede revisar todas.</p>
- <section style={{padding:16,margin:'14px 0',border:'1px solid #dce5d8',borderRadius:10,background:'#fff'}}>
- <h2>Resumen de producción</h2>
- <label>Mes: <input type="month" value={period} onChange={e=>setPeriod(e.target.value)}/></label>
- <p>Pólizas sometidas en el mes: <strong>{monthRows.length}</strong></p>
- <p>AP sometida visible: <strong>{monthAP.toFixed(2)} USD</strong></p>
- <p>AP Issue Paid reportada visible: <strong>{paidAP.toFixed(2)} USD</strong></p>
- <p>Mi AP acreditada sometida: <strong>{myAP.toFixed(2)} USD</strong></p>
- <p>Mi AP acreditada Issue Paid: <strong>{myPaid.toFixed(2)} USD</strong></p>
- <small>Resumen preliminar de pólizas visibles según permisos. Issue Paid es reportada, no verificada por la aseguradora. Cada póliza cuenta una vez en AP total.</small>
+ <section style={{padding:18,margin:'14px 0',border:'1px solid #dce5d8',borderRadius:12,background:'#fff'}}>
+ <h2 style={{margin:'0 0 14px'}}>Resumen de producción</h2>
+ <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:16}}>
+  <label>Mes: <input type="month" value={period} onChange={e=>setPeriod(e.target.value)} style={{padding:8}}/></label>
+  <label>Compañía: <select value={carrierFilter} onChange={e=>setCarrierFilter(e.target.value)} style={{padding:8}}><option value="">Todas las compañías</option>{[...new Set(rows.map(x=>x.carrier))].sort().map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+ </div>
+ <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
+  {[
+   ['Pólizas sometidas',String(monthRows.length)],
+   ['AP sometida visible',monthAP.toLocaleString('en-US',{style:'currency',currency:'USD'})],
+   ['AP Issue Paid reportada',paidAP.toLocaleString('en-US',{style:'currency',currency:'USD'})],
+   ['Mi AP acreditada · sometida',myAP.toLocaleString('en-US',{style:'currency',currency:'USD'})],
+   ['Mi AP acreditada · Issue Paid',myPaid.toLocaleString('en-US',{style:'currency',currency:'USD'})]
+  ].map(([name,value])=><div key={name} style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{name}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>)}
+ </div>
+ <p style={{fontSize:12,color:'#536454',marginTop:14}}>Datos preliminares de pólizas visibles según permisos. Issue Paid es reportada, no confirmada por aseguradora. Los splits no duplican la AP total visible; la AP personal refleja solamente la participación propia.</p>
  </section>
  <div style={{display:'flex',gap:10,margin:'14px 0 22px'}}><button style={inp} onClick={()=>setTab('list')}>Mis ventas / Producción</button><button style={inp} onClick={()=>setTab('new')}>＋ Nueva póliza</button></div>
  {editing&&<section style={{padding:18,background:'#fff',border:'1px solid #bad1be',borderRadius:10,marginBottom:16}}>
