@@ -3,7 +3,21 @@ function ProductionCenter({user,setPage}) {
  const carriers=['National Life Group','F&G','Foresters','American Amicable','Transamerica','Mutual of Omaha','Aetna','Americo','Lincoln Heritage','Occidental','Corebridge','Athene','Otro'];
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',partners:[],primaryPct:'100',date:new Date().toISOString().slice(0,10),primary:''});
- const [period,setPeriod]=React.useState('2026-10');
+ const [periodType,setPeriodType]=React.useState('month');
+ const [periodDate,setPeriodDate]=React.useState(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()));
+ const anchor=new Date(periodDate+'T12:00:00Z');
+ const start=new Date(anchor);
+ if(periodType==='week')start.setUTCDate(start.getUTCDate()-(start.getUTCDay()+6)%7);
+ if(periodType==='month')start.setUTCDate(1);
+ if(periodType==='year'){start.setUTCMonth(0);start.setUTCDate(1);}
+ const end=new Date(start);
+ if(periodType==='week')end.setUTCDate(end.getUTCDate()+6);
+ if(periodType==='month'){end.setUTCMonth(end.getUTCMonth()+1);end.setUTCDate(0);}
+ if(periodType==='year'){end.setUTCFullYear(end.getUTCFullYear()+1);end.setUTCDate(0);}
+ const iso=d=>d.toISOString().slice(0,10);
+ const rangeStart=iso(start),rangeEnd=iso(end),period=rangeStart.slice(0,7);
+ const rangeLabel=rangeStart===rangeEnd?rangeStart:rangeStart+' al '+rangeEnd;
+ const movePeriod=n=>{const d=new Date(periodDate+'T12:00:00Z');if(periodType==='day')d.setUTCDate(d.getUTCDate()+n);if(periodType==='week')d.setUTCDate(d.getUTCDate()+n*7);if(periodType==='month')d.setUTCMonth(d.getUTCMonth()+n);if(periodType==='year')d.setUTCFullYear(d.getUTCFullYear()+n);setPeriodDate(iso(d));};
  const [carrierFilter,setCarrierFilter]=React.useState('');
  const [rankMode,setRankMode]=React.useState('verified_ap');
  const [structureFilter,setStructureFilter]=React.useState('');
@@ -15,6 +29,12 @@ function ProductionCenter({user,setPage}) {
  const [splitPartnerError,setSplitPartnerError]=React.useState('');
  const [policyCredits,setPolicyCredits]=React.useState({});
  const [creditsError,setCreditsError]=React.useState('');
+ const [periodTeams,setPeriodTeams]=React.useState([]);
+ const [periodTeamError,setPeriodTeamError]=React.useState('');
+ const [leadInvestments,setLeadInvestments]=React.useState([]);
+ const [leadError,setLeadError]=React.useState('');
+ const [leadSaving,setLeadSaving]=React.useState(false);
+ const [leadForm,setLeadForm]=React.useState({spent_on:new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),provider:'',amount:'',lead_count:''});
  const [leaderRows,setLeaderRows]=React.useState([]);
  const [verifiedLeaderRows,setVerifiedLeaderRows]=React.useState([]);
  const [verifiedLeaderError,setVerifiedLeaderError]=React.useState('');
@@ -27,7 +47,30 @@ function ProductionCenter({user,setPage}) {
  const [historyRows,setHistoryRows]=React.useState([]);
  const [editing,setEditing]=React.useState(null),[statusSaving,setStatusSaving]=React.useState(false);
  const [form,setForm]=React.useState(blank),[agents,setAgents]=React.useState([]),[rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(true),[saving,setSaving]=React.useState(false),[error,setError]=React.useState(''),[notice,setNotice]=React.useState(''),[tab,setTab]=React.useState('list');
- const load=async()=>{setBusy(true);setError('');const {data,error}=await window.flcSupabase.from('flc_policy_sales').select('id,agent_id,client_name,carrier,product_type,policy_number,lead_source,status,annual_premium,split_agent_id,split_primary_pct,submitted_on,approved_on,issue_paid_on,issue_paid_verified_at,issue_paid_verified_by,created_at').order('created_at',{ascending:false}).limit(250);if(error){setError('El registro aún no está habilitado en Supabase o no tienes acceso.');}else setRows(data||[]);setBusy(false);};
+ const load=async()=>{setBusy(true);setError('');let all=[];
+  for(let offset=0;offset<20000;offset+=1000){
+   const {data,error}=await window.flcSupabase.from('flc_policy_sales').select('id,agent_id,client_name,carrier,product_type,policy_number,lead_source,status,annual_premium,split_agent_id,split_primary_pct,submitted_on,approved_on,issue_paid_on,issue_paid_verified_at,issue_paid_verified_by,created_at').order('created_at',{ascending:false}).range(offset,offset+999);
+   if(error){setError('No se pudo cargar la producción completa. Reintenta.');break;}
+   all=all.concat(data||[]);if(!data||data.length<1000)break;
+  }setRows(all);setBusy(false);};
+ const loadLeads=async()=>{let all=[];for(let offset=0;offset<20000;offset+=1000){
+  const {data,error}=await window.flcSupabase.from('flc_lead_investments').select('id,agent_id,spent_on,provider,amount,lead_count,created_at').order('spent_on',{ascending:false}).range(offset,offset+999);
+  if(error){setLeadError('Para inversión en leads falta ejecutar SQL 020 o no hay permiso.');setLeadInvestments([]);return;}
+  all=all.concat(data||[]);if(!data||data.length<1000)break;
+ }setLeadInvestments(all);setLeadError('');};
+ React.useEffect(()=>{loadLeads();},[user.id]);
+ const saveLead=async e=>{e.preventDefault();const amount=Number(leadForm.amount),count=leadForm.lead_count?Number(leadForm.lead_count):null;
+  if(!leadForm.provider.trim()||amount<=0||!leadForm.spent_on||count!==null&&(!Number.isInteger(count)||count<1)){setLeadError('Completa fecha, proveedor e inversión válida.');return;}
+  setLeadSaving(true);
+  const {error}=await window.flcSupabase.from('flc_lead_investments').insert({agent_id:user.id,spent_on:leadForm.spent_on,provider:leadForm.provider.trim(),amount,lead_count:count});
+  setLeadSaving(false);if(error){setLeadError('No se pudo guardar la inversión: '+error.message);return;}
+  setLeadForm(x=>({...x,provider:'',amount:'',lead_count:''}));await loadLeads();setNotice('Inversión en leads registrada (declarada por el agente, sin validación administrativa).');
+ };
+ React.useEffect(()=>{let active=true;if(!canViewTeam)return;setPeriodTeamError('');
+  window.flcSupabase.rpc('flc_period_team_metrics',{p_start:rangeStart,p_end:rangeEnd,p_carrier:carrierFilter||null}).then(({data,error})=>{
+   if(!active)return;if(error){setPeriodTeams([]);setPeriodTeamError('Falta activar SQL 020 para los promedios y períodos de equipos.');}else{setPeriodTeams(data||[]);setPeriodTeamError('');}
+  });return()=>{active=false;};
+ },[canViewTeam,rangeStart,rangeEnd,carrierFilter,user.id]);
  React.useEffect(()=>{let active=true;window.flcSupabase.rpc('flc_policy_participant_credits').then(({data,error})=>{
   if(!active)return;
   if(error){setCreditsError('Falta activar SQL 019 para splits múltiples.');setPolicyCredits({});return;}
@@ -63,9 +106,9 @@ function ProductionCenter({user,setPage}) {
   });return()=>{active=false;};
  },[canViewTeam,period,carrierFilter,user.id]);
  const filteredRows=rows.filter(x=>!carrierFilter||x.carrier===carrierFilter);
- const monthRows=filteredRows.filter(x=>x.submitted_on&&x.submitted_on.slice(0,7)===period);
+ const monthRows=filteredRows.filter(x=>x.submitted_on&&x.submitted_on>=rangeStart&&x.submitted_on<=rangeEnd);
  const monthAP=monthRows.reduce((n,x)=>n+Number(x.annual_premium),0);
- const paidRows=filteredRows.filter(x=>x.status==='Issue Paid'&&x.issue_paid_on&&x.issue_paid_on.slice(0,7)===period);
+ const paidRows=filteredRows.filter(x=>x.status==='Issue Paid'&&x.issue_paid_on&&x.issue_paid_on>=rangeStart&&x.issue_paid_on<=rangeEnd);
  const paidAP=paidRows.reduce((n,x)=>n+Number(x.annual_premium),0);
  const verifiedRows=paidRows.filter(x=>x.issue_paid_verified_at);
  const verifiedAP=verifiedRows.reduce((n,x)=>n+Number(x.annual_premium),0);
@@ -88,12 +131,14 @@ function ProductionCenter({user,setPage}) {
  const teamAP=teamSubmitted.reduce((n,x)=>n+teamCredit(x),0);
  const teamPaid=teamIssued.reduce((n,x)=>n+teamCredit(x),0);
  const teamVerified=verifiedRows.reduce((n,x)=>n+teamCredit(x),0);
+ const creditedNames={};
+ Object.values(policyCredits).forEach(shares=>shares.forEach(a=>{if(a.full_name)creditedNames[a.agent_id]=a.full_name;}));
  const agentBreakdown=(user.role==='admin'&&structureFilter?structureIds:[user.id,...teamIds]).filter((id,i,a)=>a.indexOf(id)===i).map(id=>{
   const share=x=>creditFor(x,id);
   const submitted=monthRows.filter(x=>participates(x,id));
   const issued=paidRows.filter(x=>participates(x,id));
   const verified=verifiedRows.filter(x=>participates(x,id));
-  return {id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||''),submitted:submitted.length,ap:submitted.reduce((n,x)=>n+share(x),0),issued:issued.length,paid:issued.reduce((n,x)=>n+share(x),0),verified:verified.reduce((n,x)=>n+share(x),0)};
+  return {id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||creditedNames[id]||''),submitted:submitted.length,ap:submitted.reduce((n,x)=>n+share(x),0),issued:issued.length,paid:issued.reduce((n,x)=>n+share(x),0),verified:verified.reduce((n,x)=>n+share(x),0)};
  }).filter(a=>a.submitted||a.issued).sort((a,b)=>b.ap-a.ap);
  // First compare credited verified AP, then earliest server-created policy.
  // For two agents tied on the same verified policy, its principal wins.
@@ -116,35 +161,59 @@ function ProductionCenter({user,setPage}) {
   {value:'verified_ap',label:'🏆 AP Issue Paid verificada',short:'AP Issue Paid verificada'},
   {value:'policy_count',label:'📋 Pólizas sometidas',short:'Pólizas sometidas'},
   {value:'submitted_ap',label:'💰 AP sometida',short:'AP sometida acreditada'},
-  {value:'effectiveness',label:'🎯 Efectividad de sometidas',short:'Efectividad verificada'}
+  {value:'effectiveness',label:'🎯 Efectividad de sometidas',short:'Efectividad verificada'},
+  {value:'lead_investment',label:'📈 Inversión en leads',short:'Inversión declarada'},
+  {value:'team_average',label:'👥 Promedio por agente productor (equipos)',short:'Promedio de equipo'}
  ];
  // Cohorte: pólizas sometidas en el mes seleccionado. Solo cuenta como
  // conversión una póliza que finalmente obtuvo Issue Paid verificada.
+ const scopedLeads=leadInvestments.filter(l=>l.spent_on>=rangeStart&&l.spent_on<=rangeEnd);
+ const spendByAgent={};const providersByAgent={};
+ scopedLeads.forEach(l=>{spendByAgent[l.agent_id]=(spendByAgent[l.agent_id]||0)+Number(l.amount);(providersByAgent[l.agent_id]||(providersByAgent[l.agent_id]=new Set())).add(l.provider);});
  const rankingRows=agentBreakdown.map(a=>{
   const cohort=monthRows.filter(p=>participates(p,a.id));
   const converted=cohort.filter(p=>p.status==='Issue Paid'&&!!p.issue_paid_verified_at);
-  return {...a,cohortCount:cohort.length,convertedCount:converted.length,
+  return {...a,investment:spendByAgent[a.id]||0,providers:[...(providersByAgent[a.id]||[])],cohortCount:cohort.length,convertedCount:converted.length,
    effectiveness:cohort.length?100*converted.length/cohort.length:0};
  });
+ const knownAgentIds=new Set(rankingRows.map(a=>a.id));
+ Object.keys(spendByAgent).forEach(id=>{if(knownAgentIds.has(id))return;
+  const allowed=user.role==='admin'&&structureFilter?structureIds:[user.id,...teamIds];
+  if(!allowed.includes(id))return;
+  rankingRows.push({id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||splitPartners.find(a=>a.id===id)?.full_name||creditedNames[id]||'Agente'),investment:spendByAgent[id],providers:[...providersByAgent[id]],verified:0,ap:0,cohortCount:0,convertedCount:0,effectiveness:0});
+ });
+ const eligibleTeams=periodTeams.filter(t=>t.scope==='team'&&Number(t.depth)===1);
+ const teamAverageRows=eligibleTeams.map(t=>({...t,id:t.leader_id,name:t.leader_name,
+  submittedAverage:Number(t.submitting_agents)>0?Number(t.submitted_ap)/Number(t.submitting_agents):0,
+  verifiedAverage:Number(t.verified_agents)>0?Number(t.verified_ap)/Number(t.verified_agents):0}));
+ const agencyTotals=periodTeams.find(t=>t.scope==='agency');
  const selectedRanking=rankingTypes.find(t=>t.value===rankMode)||rankingTypes[0];
- const rankingValue=a=>rankMode==='policy_count'?a.cohortCount:
-  rankMode==='submitted_ap'?a.ap:rankMode==='effectiveness'?a.effectiveness:a.verified;
- const rankingValueText=a=>rankMode==='policy_count'?a.cohortCount.toLocaleString('en-US'):
+ const rankingValue=a=>rankMode==='team_average'?a.verifiedAverage:rankMode==='policy_count'?a.cohortCount:
+  rankMode==='submitted_ap'?a.ap:rankMode==='effectiveness'?a.effectiveness:rankMode==='lead_investment'?a.investment:a.verified;
+ const rankingValueText=a=>rankMode==='team_average'?fmt(a.verifiedAverage):rankMode==='policy_count'?a.cohortCount.toLocaleString('en-US'):
   rankMode==='effectiveness'?a.effectiveness.toFixed(1)+'%':fmt(rankingValue(a));
- const rankingContext=a=>rankMode==='effectiveness'
+ const rankingContext=a=>rankMode==='team_average'?'Sometida: '+fmt(a.submittedAverage)+' · '+a.submitting_agents+' agentes que sometieron · '+a.verified_agents+' con IP verificada':rankMode==='effectiveness'
   ?a.convertedCount+' de '+a.cohortCount+' pólizas verificadas'
   :rankMode==='verified_ap'?'⭐ '+legacyPoints(a.verified)+' Legacy Points'
   :rankMode==='policy_count'?fmt(a.ap)+' de AP sometida acreditada'
+  :rankMode==='lead_investment'?'Proveedores: '+(a.providers||[]).join(', ')
   :a.cohortCount+' pólizas sometidas';
  const firstRecord=id=>{
-  const eligible=rankMode==='verified_ap'?verifiedRows:monthRows;
+  if(rankMode==='lead_investment')return scopedLeads.filter(l=>l.agent_id===id).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))[0];
+  const eligible=rankMode==='verified_ap'||rankMode==='team_average'?verifiedRows:monthRows;
   return eligible.filter(p=>participates(p,id))
    .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))[0];
  };
- const rankedAgentRows=rankingRows.filter(a=>rankMode==='effectiveness'?a.cohortCount>0:rankingValue(a)>0)
+ const rankedAgentRows=(rankMode==='team_average'?teamAverageRows:rankingRows).filter(a=>rankMode==='team_average'?(Number(a.submitting_agents)>0||Number(a.verified_agents)>0):rankMode==='effectiveness'?a.cohortCount>0:rankingValue(a)>0)
  .sort((a,b)=>{
   const diff=rankingValue(b)-rankingValue(a);
   if(Math.abs(diff)>0.000001)return diff>0?1:-1;
+  if(rankMode==='team_average'){
+   if(b.submittedAverage!==a.submittedAverage)return b.submittedAverage-a.submittedAverage;
+   const tA=a.verified_reached_at?new Date(a.verified_reached_at).getTime():Infinity;
+   const tB=b.verified_reached_at?new Date(b.verified_reached_at).getTime():Infinity;
+   return tA!==tB?tA-tB:(a.name||'').localeCompare(b.name||'','es');
+  }
   if(rankMode==='effectiveness'){
    if(b.convertedCount!==a.convertedCount)return b.convertedCount-a.convertedCount;
    if(b.cohortCount!==a.cohortCount)return b.cohortCount-a.cohortCount;
@@ -166,12 +235,12 @@ function ProductionCenter({user,setPage}) {
  // Team ranking compares managers directly below the agency owner (depth 1).
  // Each manager's verified AP includes their own production and descendants.
  const visibleLeaders=leaderRows.filter(l=>user.role!=='admin'||!structureFilter||structureIds.includes(l.leader_id));
- const rankedLeaders=visibleLeaders.map(l=>({...l,verified:Number(verifiedLeaderRows.find(v=>v.leader_id===l.leader_id)?.paid_ap||0)}))
+ const rankedLeaders=(periodTeamError?[]:periodTeams.filter(t=>t.scope==='team')).filter(l=>user.role!=='admin'||!structureFilter||structureIds.includes(l.leader_id)).map(l=>({...l,verified:Number(l.verified_ap||0)}))
   .filter(l=>l.verified>0).sort((a,b)=>{
    const apDiff=Math.round((b.verified-a.verified)*100);
    if(apDiff)return apDiff;
-   const timeA=rankTimes[a.leader_id]?new Date(rankTimes[a.leader_id]).getTime():Infinity;
-   const timeB=rankTimes[b.leader_id]?new Date(rankTimes[b.leader_id]).getTime():Infinity;
+   const timeA=a.verified_reached_at?new Date(a.verified_reached_at).getTime():Infinity;
+   const timeB=b.verified_reached_at?new Date(b.verified_reached_at).getTime():Infinity;
    if(timeA!==timeB)return timeA-timeB;
    return (a.leader_name||'').localeCompare(b.leader_name||'','es');
   });
@@ -231,7 +300,11 @@ function ProductionCenter({user,setPage}) {
  <section style={{padding:18,margin:'14px 0',border:'1px solid #dce5d8',borderRadius:12,background:'#fff'}}>
  <h2 style={{margin:'0 0 14px'}}>Resumen de producción</h2>
  <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:16}}>
-  <label>Mes: <input type="month" value={period} onChange={e=>setPeriod(e.target.value)} style={{padding:8}}/></label>
+  <label>Período: <select value={periodType} onChange={e=>setPeriodType(e.target.value)} style={{padding:8}}><option value="day">Día</option><option value="week">Semana (lunes a domingo)</option><option value="month">Mes</option><option value="year">Año</option></select></label>
+  <button type="button" onClick={()=>movePeriod(-1)}>← Anterior</button>
+  <label>Fecha: <input type="date" value={periodDate} onChange={e=>setPeriodDate(e.target.value)} style={{padding:8}}/></label>
+  <button type="button" onClick={()=>movePeriod(1)}>Siguiente →</button>
+  <strong style={{alignSelf:'center'}}>{rangeLabel}</strong>
   <label>Compañía: <select value={carrierFilter} onChange={e=>setCarrierFilter(e.target.value)} style={{padding:8}}><option value="">Todas las compañías</option>{[...new Set(rows.map(x=>x.carrier))].sort().map(x=><option key={x} value={x}>{x}</option>)}</select></label>
  </div>
  {user.role==='admin'&&<label style={{marginLeft:12}}>Estructura: <select value={structureFilter} onChange={e=>setStructureFilter(e.target.value)}><option value="">Toda la agencia</option>{leaderRows.map(l=><option key={l.leader_id} value={l.leader_id}>{l.leader_name}</option>)}</select></label>}
@@ -256,7 +329,7 @@ function ProductionCenter({user,setPage}) {
  {metric('⭐ Legacy Points del equipo',legacyPoints(teamVerified).toLocaleString('en-US'))}
  </div>
  {canViewTeam&&<section style={{marginTop:24,padding:18,border:'1px solid #c5d7c6',borderRadius:14,background:'#f9fbf8'}}>
-  <h3 style={{margin:'0 0 6px'}}>🏆 Podio mensual de agentes</h3>
+  <h3 style={{margin:'0 0 6px'}}>🏆 Podio · {periodType==='day'?'diario':periodType==='week'?'semanal':periodType==='month'?'mensual':'anual'}</h3>
   <label style={{display:'flex',flexDirection:'column',gap:6,maxWidth:430,fontWeight:600,fontSize:13,marginBottom:12}}>Categoría del podio
    <select value={rankMode} onChange={e=>setRankMode(e.target.value)} style={{padding:10,border:'1px solid #bed3bf',borderRadius:8,background:'#fff'}}>
     {rankingTypes.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
@@ -264,11 +337,13 @@ function ProductionCenter({user,setPage}) {
   </label>
   <p style={{fontSize:13,color:'#4a624f',margin:'0 0 16px'}}>
    {rankMode==='verified_ap'?'Solo AP Issue Paid verificada por Administración. 1 Legacy Point por cada $100 de AP acreditada.':
-    rankMode==='policy_count'?'Cuenta cada póliza sometida en este mes por agente participante. En un split, cada participante cuenta una póliza, sin duplicar la AP.':
-    rankMode==='submitted_ap'?'Suma la AP sometida del mes, acreditada según los porcentajes de split. Es prima anualizada, no el valor nominal del seguro.':
-    'Efectividad por cohorte: pólizas sometidas en el mes seleccionado que llegaron a Issue Paid y fueron verificadas por Administración, divididas entre todas las sometidas de esa misma cohorte. Incluye verificaciones posteriores. Sin mínimo de pólizas; observa también el volumen.'}
-   {' · '+period+' · '+(carrierFilter||'Todas las compañías')}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}.
-   Desempate: primer registro; si es la misma póliza, agente principal.
+    rankMode==='policy_count'?'Cuenta cada póliza sometida en el período por agente participante. En un split, cada participante cuenta una póliza, sin duplicar la AP.':
+    rankMode==='submitted_ap'?'Suma la AP sometida del período, acreditada según los porcentajes de split.':
+    rankMode==='lead_investment'?'Inversión en leads declarada por el agente, con proveedor obligatorio. No requiere aprobación de Administración; no representa AP de pólizas.':
+    rankMode==='team_average'?'Equipos de managers directos. Primer valor: AP Issue Paid verificada / agentes con IP verificada. Segundo: AP sometida / agentes que sometieron. Cada equipo incluye a su manager y descendientes.':
+    'Efectividad por cohorte: pólizas sometidas en el período que llegaron a Issue Paid y fueron verificadas por Administración, divididas entre todas las sometidas de esa cohorte. Incluye verificaciones posteriores.'}
+   {' · '+rangeLabel+' · '+(rankMode==='lead_investment'?'Todos los proveedores':(carrierFilter||'Todas las compañías'))}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}.
+   {rankMode==='lead_investment'?'Desempate de inversión: registro de compra más antiguo.':rankMode==='team_average'?'Desempate de equipos: mayor promedio sometido y primera verificación.':'Desempate de agentes: primer registro; si es la misma póliza, agente principal.'}
   </p>
   {rankedAgentRows.length?<React.Fragment>
    <div style={{display:'grid',gridTemplateColumns:rankedAgentRows.length===1?'minmax(0,1fr)':rankedAgentRows.length===2?'repeat(2,minmax(0,1fr))':'repeat(3,minmax(0,1fr))',gap:10,alignItems:'end'}}>
@@ -282,7 +357,7 @@ function ProductionCenter({user,setPage}) {
     <tbody>{rankedAgentRows.map((a,i)=><tr key={a.id}><td style={{padding:9,borderBottom:'1px solid #e1e8dd'}}>{i+1}</td><td>{a.name||'Agente del equipo'}</td><td style={{fontWeight:700}}>{rankingValueText(a)}</td><td style={{color:'#226b3a'}}>{rankingContext(a)}</td></tr>)}</tbody>
    </table></div>
   </React.Fragment>:<p>Sin producción que cumpla los criterios de esta categoría y período.</p>}
-  <p style={{fontSize:12,color:'#536454',marginTop:12}}>Solo agentes autorizados en esta vista. El ranking de equipos de managers directos se muestra por separado más abajo; sus estructuras incluyen producción personal y descendientes. Los Legacy Points oficiales siempre proceden de AP Issue Paid verificada.</p>
+  <p style={{fontSize:12,color:'#536454',marginTop:12}}>Solo participantes o equipos autorizados en esta vista. El ranking de equipos de managers directos se muestra por separado más abajo; sus estructuras incluyen producción personal y descendientes. Los Legacy Points oficiales siempre proceden de AP Issue Paid verificada.</p>
  </section>}
  <h4 style={{margin:'20px 0 10px'}}>Detalle por agente (AP acreditada)</h4>
  <div style={{overflowX:'auto'}}>
@@ -291,10 +366,10 @@ function ProductionCenter({user,setPage}) {
  <tbody>{agentBreakdown.map(a=><tr key={a.id}><td style={{padding:10,borderBottom:'1px solid #eee'}}>{a.name||'Agente del equipo'}</td><td>{a.submitted}</td><td>{fmt(a.ap)}</td><td>{a.issued}</td><td>{fmt(a.paid)}</td><td>{fmt(a.verified)}</td><td style={{fontWeight:700,color:'#226b3a'}}>⭐ {legacyPoints(a.verified)}</td></tr>)}</tbody>
  </table>{!agentBreakdown.length&&<p>Sin producción registrada para la estructura en este período.</p>}</div>
  <section style={{marginTop:24,padding:18,border:'1px solid #c5d7c6',borderRadius:14,background:'#f9fbf8'}}>
-  <h3 style={{margin:'0 0 6px'}}>🏆 Ranking mensual de líderes y equipos</h3>
-  <p style={{fontSize:13,color:'#4a624f'}}>⭐ 1 Legacy Point por cada $100 de AP verificada · {period} · {carrierFilter||'Todas las compañías'}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}. Cada cifra incluye al líder y sus descendientes; los splits respetan la participación acreditada.</p>
+  <h3 style={{margin:'0 0 6px'}}>🏆 Ranking de líderes y equipos · {rangeLabel}</h3>
+  <p style={{fontSize:13,color:'#4a624f'}}>⭐ 1 Legacy Point por cada $100 de AP verificada · {rangeLabel} · {carrierFilter||'Todas las compañías'}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}. Cada cifra incluye al líder y sus descendientes; los splits respetan la participación acreditada.</p>
   {rankTimesError&&<p role="alert" style={{color:'#9a3c28'}}>{rankTimesError}</p>}
-  {verifiedLeaderError?<p role="alert" style={{color:'#9a3c28'}}>{verifiedLeaderError}</p>:leaderError?<p role="alert" style={{color:'#9a3c28'}}>{leaderError}</p>:structureLoading?<p>Cargando clasificación de la estructura…</p>:<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16}}>
+  {periodTeamError?<p role="alert" style={{color:'#9a3c28'}}>{periodTeamError}</p>:structureLoading?<p>Cargando clasificación de la estructura…</p>:<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16}}>
   {[{title:'👑 Líderes y sublíderes · Top 10',items:rankedLeaders},{title:'👥 Equipos de managers directos · Top 10',items:rankedTeams}].map(group=><div key={group.title} style={{background:'#fff',border:'1px solid #d9e7d7',borderRadius:10,padding:14}}>
    <h4 style={{margin:'0 0 12px'}}>{group.title}</h4>
    {group.items.length?<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
@@ -304,18 +379,43 @@ function ProductionCenter({user,setPage}) {
   </div>)}</div>}
   <p style={{fontSize:12,color:'#536454',margin:'12px 0 0'}}>Legacy Points se calculan sobre la AP verificada de cada vista; los puntos de equipos no deben sumarse con los personales ni con estructuras anidadas. Ranking de líderes: incluye estructuras anidadas que pueden superponerse. Ranking de equipos: managers de nivel 1 con todos sus descendientes, sin incluir la estructura general de la agencia (nivel 0). No sumes las filas del ranking de líderes para calcular la AP total de la agencia. Ante igual AP, gana la estructura que completó primero su AP verificada (última verificación del total). Si ambos momentos son idénticos, se aplica orden alfabético técnico. El desempate por tiempo requiere SQL 017 activo.</p>
  </section>
+ <section style={{marginTop:24,padding:18,background:'#f4f9f4',border:'1px solid #b9d2bd',borderRadius:12}}>
+  <h3>📊 Promedios por agente que produjo · {rangeLabel}</h3>
+  <p style={{fontSize:13}}>Dos denominadores independientes. Los splits se acreditan por porcentaje y cada agente se cuenta una sola vez dentro de su equipo. Los equipos incluyen la producción personal de sus managers. No se suman estructuras anidadas.</p>
+  {periodTeamError?<p role="alert">{periodTeamError}</p>:<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+   <thead><tr>{['Equipo / agencia','Agentes que sometieron','AP sometida','Promedio sometida / agente','Agentes con IP verificada','AP IP verificada','Promedio verificada / agente'].map(x=><th key={x} style={{padding:8,borderBottom:'1px solid #b9d2bd',textAlign:'left'}}>{x}</th>)}</tr></thead>
+   <tbody>{[...periodTeams.filter(t=>t.scope==='agency'),...periodTeams.filter(t=>t.scope==='team'&&Number(t.depth)===1)].map(t=><tr key={t.leader_id||'agency'}>
+    <td style={{padding:8,borderBottom:'1px solid #dde8dc'}}><strong>{t.leader_name}</strong></td>
+    <td>{t.submitting_agents}</td><td>{fmt(t.submitted_ap)}</td><td><strong>{fmt(Number(t.submitting_agents)?Number(t.submitted_ap)/Number(t.submitting_agents):0)}</strong></td>
+    <td>{t.verified_agents}</td><td>{fmt(t.verified_ap)}</td><td><strong>{fmt(Number(t.verified_agents)?Number(t.verified_ap)/Number(t.verified_agents):0)}</strong></td>
+   </tr>)}</tbody>
+  </table></div>}
+ </section>
  <h4 style={{margin:'20px 0 10px'}}>Producción por líder y sublíder</h4>
- {leaderError?<p style={{color:'#9a3c28'}}>{leaderError}</p>:<div style={{overflowX:'auto'}}>
+ {periodTeamError?<p style={{color:'#9a3c28'}}>{periodTeamError}</p>:<div style={{overflowX:'auto'}}>
  <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
- <thead><tr>{['Líder / estructura','Pólizas sometidas','AP sometida','Pólizas Issue Paid','AP Issue Paid','AP verificada'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{x}</th>)}</tr></thead>
- <tbody>{leaderRows.map(a=><tr key={a.leader_id}><td style={{padding:10,borderBottom:'1px solid #eee'}}><span style={{display:'inline-block',paddingLeft:Math.max(0,Number(a.depth)||0)*20}}>{Number(a.depth)===0?'👥 ': '↳ '}{a.leader_name} <small style={{color:'#647568'}}>{Number(a.depth)===0?'(líder principal)':'(nivel '+a.depth+')'}</small></span></td><td>{a.policy_count||0}</td><td>{fmt(a.submitted_ap||0)}</td><td>{a.paid_count||0}</td><td>{fmt(a.paid_ap||0)}</td><td>{fmt(verifiedLeaderRows.find(v=>v.leader_id===a.leader_id)?.paid_ap||0)}</td></tr>)}</tbody></table>
- {!leaderRows.length&&<p>No hay estructuras de líderes para mostrar.</p>}</div>}
+ <thead><tr>{['Líder / estructura','Pólizas sometidas','AP sometida','Pólizas IP verificadas','AP IP verificada','Agentes que sometieron','Agentes IP verificada'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{x}</th>)}</tr></thead>
+ <tbody>{periodTeams.filter(a=>a.scope==='team').map(a=><tr key={a.leader_id}><td style={{padding:10,borderBottom:'1px solid #eee'}}><span style={{display:'inline-block',paddingLeft:Math.max(0,Number(a.depth)||0)*20}}>{Number(a.depth)===0?'👥 ': '↳ '}{a.leader_name} <small style={{color:'#647568'}}>{Number(a.depth)===0?'(líder principal)':'(nivel '+a.depth+')'}</small></span></td><td>{a.submitted_policies||0}</td><td>{fmt(a.submitted_ap||0)}</td><td>{a.verified_policies||0}</td><td>{fmt(a.verified_ap||0)}</td><td>{a.submitting_agents||0}</td><td>{a.verified_agents||0}</td></tr>)}</tbody></table>
+ {!periodTeams.filter(a=>a.scope==='team').length&&<p>No hay estructuras de líderes para mostrar.</p>}</div>}
  <p style={{fontSize:12,color:'#536454'}}>Las estructuras de un líder y sus sublíderes se superponen. No sumes las filas entre sí. Cada fila incluye al líder y todos sus descendientes.</p>
- {user.role==='admin'&&<div style={{marginTop:12,padding:14,border:'1px solid #9cbd9e',borderRadius:9,background:'#f4f9f4'}}><strong>✓ AP Issue Paid verificada (agencia)</strong><div style={{fontSize:23,fontWeight:700}}>{fmt(verifiedAP)}</div><small>Solo pólizas confirmadas por Administración. No se mezclan con Issue Paid reportada.</small></div>}
- {user.role==='admin'&&<p style={{fontSize:13,marginTop:12}}>Agencia · {monthRows.length} pólizas sometidas · {fmt(monthAP)} AP total · {fmt(paidAP)} Issue Paid reportada (sin duplicar splits).</p>}
+ {user.role==='admin'&&<div style={{marginTop:12,padding:14,border:'1px solid #9cbd9e',borderRadius:9,background:'#f4f9f4'}}><strong>✓ AP Issue Paid verificada (agencia)</strong><div style={{fontSize:23,fontWeight:700}}>{fmt(agencyTotals?agencyTotals.verified_ap:verifiedAP)}</div><small>Solo pólizas confirmadas por Administración. No se mezclan con Issue Paid reportada.</small></div>}
+ {user.role==='admin'&&<p style={{fontSize:13,marginTop:12}}>Agencia · {agencyTotals?agencyTotals.submitted_policies:monthRows.length} pólizas sometidas · {fmt(agencyTotals?agencyTotals.submitted_ap:monthAP)} AP total · {fmt(paidAP)} Issue Paid reportada (sin duplicar splits).</p>}
  </React.Fragment>}
  {canViewTeam&&<p style={{fontSize:12,color:'#536454'}}>Diagnóstico de estructura: {teamIds.length} integrantes asignados; {rows.length} pólizas accesibles; {teamSubmitted.length} pólizas con participación del equipo en este mes.</p>}
  <p style={{fontSize:12,color:'#536454',marginTop:14}}>Datos preliminares de pólizas visibles según permisos. Issue Paid es reportada, no confirmada por aseguradora. Los splits no duplican la AP total visible; la AP de equipo incluye la participación del líder y su estructura autorizada. No sumes personal y equipo.</p>
+ </section>
+ <section style={{margin:'20px 0',background:'#fff',border:'1px solid #b9d2bd',padding:18,borderRadius:12}}>
+  <h3>📈 Registrar inversión en leads</h3>
+  <p style={{fontSize:13}}>Dato declarado por el agente. Administración no tiene que validarlo. Debes indicar en qué proveedor invertiste; esta inversión no se suma a la AP sometida.</p>
+  {leadError&&<p role="alert" style={{color:'#a33'}}>{leadError}</p>}
+  <form onSubmit={saveLead} style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10}}>
+   {field('Fecha *',<input required type="date" style={inp} value={leadForm.spent_on} onChange={e=>setLeadForm(x=>({...x,spent_on:e.target.value}))}/>)}
+   {field('Proveedor de leads *',<input required maxLength={120} placeholder="Ej.: AuraFlow" style={inp} value={leadForm.provider} onChange={e=>setLeadForm(x=>({...x,provider:e.target.value}))}/>)}
+   {field('Inversión USD *',<input required type="number" min="0.01" step="0.01" style={inp} value={leadForm.amount} onChange={e=>setLeadForm(x=>({...x,amount:e.target.value}))}/>)}
+   {field('Cantidad de leads (opcional)',<input type="number" min="1" step="1" style={inp} value={leadForm.lead_count} onChange={e=>setLeadForm(x=>({...x,lead_count:e.target.value}))}/>)}
+   <button disabled={leadSaving} style={{padding:12,border:0,borderRadius:8,background:'#176b3b',color:'#fff',fontWeight:700}}>{leadSaving?'Guardando…':'Guardar inversión'}</button>
+  </form>
+  <p style={{fontSize:12,color:'#5c6b5d'}}>Mis inversiones en el período: {fmt(scopedLeads.filter(l=>l.agent_id===user.id).reduce((n,l)=>n+Number(l.amount),0))} · {scopedLeads.filter(l=>l.agent_id===user.id).length} registros.</p>
  </section>
  <div style={{display:'flex',gap:10,margin:'14px 0 22px'}}><button style={inp} onClick={()=>setTab('list')}>Mis ventas / Producción</button><button style={inp} onClick={()=>setTab('new')}>＋ Nueva póliza</button></div>
  {editing&&<section style={{padding:18,background:'#fff',border:'1px solid #bad1be',borderRadius:10,marginBottom:16}}>
