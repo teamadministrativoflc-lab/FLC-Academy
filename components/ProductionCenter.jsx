@@ -82,6 +82,7 @@ function ProductionCenter({user,setPage}) {
  </div>
  {user.role==='admin'&&<p style={{fontSize:13,marginTop:12}}>Agencia · {monthRows.length} pólizas sometidas · {fmt(monthAP)} AP total · {fmt(paidAP)} Issue Paid reportada (sin duplicar splits).</p>}
  </React.Fragment>}
+ {canViewTeam&&<p style={{fontSize:12,color:'#536454'}}>Diagnóstico de estructura: {teamIds.length} integrantes asignados; {rows.length} pólizas accesibles; {teamSubmitted.length} pólizas con participación del equipo en este mes.</p>}
  <p style={{fontSize:12,color:'#536454',marginTop:14}}>Datos preliminares de pólizas visibles según permisos. Issue Paid es reportada, no confirmada por aseguradora. Los splits no duplican la AP total visible; la AP de equipo incluye la participación del líder y su estructura autorizada. No sumes personal y equipo.</p>
  </section>
  <div style={{display:'flex',gap:10,margin:'14px 0 22px'}}><button style={inp} onClick={()=>setTab('list')}>Mis ventas / Producción</button><button style={inp} onClick={()=>setTab('new')}>＋ Nueva póliza</button></div>
