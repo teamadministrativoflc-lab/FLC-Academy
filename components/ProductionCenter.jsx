@@ -33,6 +33,16 @@ function ProductionCenter({user,setPage}) {
  setNotice('Póliza registrada. Queda en estado Sometida hasta la validación administrativa.');setForm(blank());setTab('list');await load();};
  return <div style={{padding:28,maxWidth:1250,margin:'auto'}}>
  <button onClick={()=>setPage('dashboard')}>← Inicio</button><h1>FLC Production Center</h1><p>Registra pólizas, consulta su estado y lleva control de splits. El agente principal puede actualizar estados de sus pólizas; Administración puede revisar todas.</p>
+ <section style={{padding:16,margin:'14px 0',border:'1px solid #dce5d8',borderRadius:10,background:'#fff'}}>
+ <h2>Resumen de producción</h2>
+ <label>Mes: <input type="month" value={period} onChange={e=>setPeriod(e.target.value)}/></label>
+ <p>Pólizas sometidas en el mes: <strong>{monthRows.length}</strong></p>
+ <p>AP sometida visible: <strong>{monthAP.toFixed(2)} USD</strong></p>
+ <p>AP Issue Paid reportada visible: <strong>{paidAP.toFixed(2)} USD</strong></p>
+ <p>Mi AP acreditada sometida: <strong>{myAP.toFixed(2)} USD</strong></p>
+ <p>Mi AP acreditada Issue Paid: <strong>{myPaid.toFixed(2)} USD</strong></p>
+ <small>Resumen preliminar de pólizas visibles según permisos. Issue Paid es reportada, no verificada por la aseguradora. Cada póliza cuenta una vez en AP total.</small>
+ </section>
  <div style={{display:'flex',gap:10,margin:'14px 0 22px'}}><button style={inp} onClick={()=>setTab('list')}>Mis ventas / Producción</button><button style={inp} onClick={()=>setTab('new')}>＋ Nueva póliza</button></div>
  {editing&&<section style={{padding:18,background:'#fff',border:'1px solid #bad1be',borderRadius:10,marginBottom:16}}>
   <h2 style={{fontSize:18}}>Actualizar estado de póliza</h2>
