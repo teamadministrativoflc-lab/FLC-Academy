@@ -86,6 +86,7 @@ function App() {
   if (!progressLoaded) return <p style={{padding:32}}>Cargando progreso de formación…</p>;
 
   const pages = {
+    production: <ProductionCenter user={user} setPage={setPage} />,
     admin: user.role === 'admin' ? <AdminTracking setPage={setPage} /> : null,
     team: isLeader ? <TeamPanel setPage={setPage} user={user} /> : null,
     dashboard: <Dashboard user={user} setPage={setPage} progress={progress} t={t} lang={lang} />,
@@ -109,6 +110,7 @@ function App() {
             </div>
           </div>
         </div>
+        <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('production')} style={{padding:'9px 16px',border:'1px solid #8da588',borderRadius:7,background:'#eef4ea',cursor:'pointer'}}>📋 Mis ventas / Nueva póliza</button></div>
         {isLeader && user.role !== 'admin' && <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('team')} style={{padding:'9px 16px',border:'1px solid #8da588',borderRadius:7,background:'#eef4ea',cursor:'pointer'}}>👥 Mi equipo</button></div>}
         {user.role === "admin" && <div style={{padding:"4px 28px"}}><button onClick={() => setPage("admin")} style={{padding:"9px 16px",border:"1px solid #8da588",borderRadius:7,background:"#eef4ea",cursor:"pointer"}}>📊 Seguimiento de agentes</button></div>}
         {pages[page] || pages.dashboard}
