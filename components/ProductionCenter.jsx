@@ -48,7 +48,7 @@ function ProductionCenter({user,setPage}) {
   setRankTimes({});setRankTimesError('');
   window.flcSupabase.rpc('flc_leader_verified_rank_times',{p_month:period,p_carrier:carrierFilter||null}).then(({data,error})=>{
    if(!active)return;
-   if(error){setRankTimesError('Falta ejecutar SQL 017 en Supabase para aplicar el desempate por primera verificación.');return;}
+   if(error){setRankTimesError('No se pudo consultar el desempate (SQL 017).'+(user.role==='admin'?' Código: '+(error.code||'desconocido')+' · '+(error.message||'sin detalle'):' Contacta a Administración.'));return;}
    setRankTimes(Object.fromEntries((data||[]).map(x=>[x.leader_id,x.reached_at])));
   });return()=>{active=false;};
  },[canViewTeam,period,carrierFilter,user.id]);
