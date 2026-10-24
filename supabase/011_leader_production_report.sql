@@ -41,7 +41,7 @@ AS $$
  FROM leader_scope ls JOIN public.agent_profiles p ON p.id=ls.leader_id
  LEFT JOIN credits c ON c.leader_id=ls.leader_id
  WHERE public.flc_is_admin() OR public.flc_is_team_leader()
- GROUP BY ls.leader_id,p.full_name ORDER BY depth,leader_name;
+ GROUP BY ls.leader_id,p.full_name ORDER BY 3,2;
 $$;
 REVOKE ALL ON FUNCTION public.flc_leader_production_report(text,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.flc_leader_production_report(text,text) TO authenticated;
