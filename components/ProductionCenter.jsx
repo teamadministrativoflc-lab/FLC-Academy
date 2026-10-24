@@ -6,6 +6,8 @@ function ProductionCenter({user,setPage}) {
  const [period,setPeriod]=React.useState('2026-10');
  const [carrierFilter,setCarrierFilter]=React.useState('');
  const [teamIds,setTeamIds]=React.useState([]);
+ const [leaderRows,setLeaderRows]=React.useState([]);
+ const [leaderError,setLeaderError]=React.useState('');
  const [canViewTeam,setCanViewTeam]=React.useState(user.role==='admin');
  const [editing,setEditing]=React.useState(null),[statusSaving,setStatusSaving]=React.useState(false);
  const [form,setForm]=React.useState(blank),[agents,setAgents]=React.useState([]),[rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(true),[saving,setSaving]=React.useState(false),[error,setError]=React.useState(''),[notice,setNotice]=React.useState(''),[tab,setTab]=React.useState('list');
@@ -23,6 +25,10 @@ function ProductionCenter({user,setPage}) {
    }else{setCanViewTeam(false);setTeamIds([]);}
   }
  };fetchTeam();},[user.id]);
+ React.useEffect(()=>{let active=true;if(!canViewTeam)return;
+ window.flcSupabase.rpc('flc_leader_production_report',{p_month:period,p_carrier:carrierFilter||null}).then(({data,error})=>{
+ if(!active)return;if(error){setLeaderError('Falta habilitar el reporte de líderes en Supabase.');setLeaderRows([]);}else{setLeaderError('');setLeaderRows(data||[]);}
+ });return()=>{active=false;};},[canViewTeam,period,carrierFilter,user.id]);
  const filteredRows=rows.filter(x=>!carrierFilter||x.carrier===carrierFilter);
  const monthRows=filteredRows.filter(x=>x.submitted_on&&x.submitted_on.slice(0,7)===period);
  const monthAP=monthRows.reduce((n,x)=>n+Number(x.annual_premium),0);
@@ -92,6 +98,13 @@ function ProductionCenter({user,setPage}) {
  <thead><tr>{['Agente','Pólizas sometidas','AP sometida','Pólizas Issue Paid','AP Issue Paid'].map(t=><th key={t} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{t}</th>)}</tr></thead>
  <tbody>{agentBreakdown.map(a=><tr key={a.id}><td style={{padding:10,borderBottom:'1px solid #eee'}}>{a.name||'Agente del equipo'}</td><td>{a.submitted}</td><td>{fmt(a.ap)}</td><td>{a.issued}</td><td>{fmt(a.paid)}</td></tr>)}</tbody>
  </table>{!agentBreakdown.length&&<p>Sin producción registrada para la estructura en este período.</p>}</div>
+ <h4 style={{margin:'20px 0 10px'}}>Producción por líder y sublíder</h4>
+ {leaderError?<p style={{color:'#9a3c28'}}>{leaderError}</p>:<div style={{overflowX:'auto'}}>
+ <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+ <thead><tr>{['Líder / estructura','Pólizas sometidas','AP sometida','Pólizas Issue Paid','AP Issue Paid'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{x}</th>)}</tr></thead>
+ <tbody>{leaderRows.map(a=><tr key={a.leader_id}><td style={{padding:10,borderBottom:'1px solid #eee'}}>{a.depth===0?'👥 ': '↳ '}{a.leader_name}</td><td>{a.policy_count||0}</td><td>{fmt(a.submitted_ap||0)}</td><td>{a.paid_count||0}</td><td>{fmt(a.paid_ap||0)}</td></tr>)}</tbody></table>
+ {!leaderRows.length&&<p>No hay estructuras de líderes para mostrar.</p>}</div>}
+ <p style={{fontSize:12,color:'#536454'}}>Las estructuras de un líder y sus sublíderes se superponen. No sumes las filas entre sí. Cada fila incluye al líder y todos sus descendientes.</p>
  {user.role==='admin'&&<p style={{fontSize:13,marginTop:12}}>Agencia · {monthRows.length} pólizas sometidas · {fmt(monthAP)} AP total · {fmt(paidAP)} Issue Paid reportada (sin duplicar splits).</p>}
  </React.Fragment>}
  {canViewTeam&&<p style={{fontSize:12,color:'#536454'}}>Diagnóstico de estructura: {teamIds.length} integrantes asignados; {rows.length} pólizas accesibles; {teamSubmitted.length} pólizas con participación del equipo en este mes.</p>}
