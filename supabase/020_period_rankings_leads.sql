@@ -73,7 +73,7 @@ AS $$
  ), scopes AS (
   SELECT 'team'::text AS scope,m.leader_id,m.agent_id FROM members m
   UNION ALL
-  SELECT 'agency'::text,NULL::uuid AS leader_id,a.agent_id
+  SELECT 'agency'::text,NULL::uuid AS leader_id,a.id
   FROM public.agent_profiles a WHERE public.flc_is_admin()
  ), distinct_scopes AS (
   SELECT DISTINCT scope,leader_id,agent_id FROM scopes
