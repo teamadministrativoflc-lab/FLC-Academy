@@ -31,6 +31,16 @@ function ProductionCenter({user,setPage}) {
  const myCredit=x=>Number(x.annual_premium)*(x.agent_id===user.id?Number(x.split_primary_pct)/100:x.split_agent_id===user.id?(100-Number(x.split_primary_pct))/100:0);
  const myAP=monthRows.reduce((n,x)=>n+myCredit(x),0);
  const myPaid=paidRows.reduce((n,x)=>n+myCredit(x),0);
+ const mySubmitted=monthRows.filter(x=>x.agent_id===user.id||x.split_agent_id===user.id);
+ const myIssued=paidRows.filter(x=>x.agent_id===user.id||x.split_agent_id===user.id);
+ const memberSet=new Set(teamIds);
+ const teamCredit=x=>Number(x.annual_premium)*((memberSet.has(x.agent_id)?Number(x.split_primary_pct)/100:0)+(x.split_agent_id&&memberSet.has(x.split_agent_id)?(100-Number(x.split_primary_pct))/100:0));
+ const teamSubmitted=monthRows.filter(x=>memberSet.has(x.agent_id)||memberSet.has(x.split_agent_id));
+ const teamIssued=paidRows.filter(x=>memberSet.has(x.agent_id)||memberSet.has(x.split_agent_id));
+ const teamAP=teamSubmitted.reduce((n,x)=>n+teamCredit(x),0);
+ const teamPaid=teamIssued.reduce((n,x)=>n+teamCredit(x),0);
+ const fmt=x=>Number(x).toLocaleString('en-US',{style:'currency',currency:'USD'});
+ const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
  const inp={padding:10,border:'1px solid #ccd8cd',borderRadius:7,width:'100%',fontSize:14,background:'#fff'};
  const change=(k,v)=>setForm(x=>({...x,[k]:v}));
@@ -55,15 +65,23 @@ function ProductionCenter({user,setPage}) {
   <label>Mes: <input type="month" value={period} onChange={e=>setPeriod(e.target.value)} style={{padding:8}}/></label>
   <label>Compañía: <select value={carrierFilter} onChange={e=>setCarrierFilter(e.target.value)} style={{padding:8}}><option value="">Todas las compañías</option>{[...new Set(rows.map(x=>x.carrier))].sort().map(x=><option key={x} value={x}>{x}</option>)}</select></label>
  </div>
+ <h3>👤 Producción personal</h3>
  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
-  {[
-   ['Pólizas sometidas',String(monthRows.length)],
-   ['AP sometida visible',monthAP.toLocaleString('en-US',{style:'currency',currency:'USD'})],
-   ['AP Issue Paid reportada',paidAP.toLocaleString('en-US',{style:'currency',currency:'USD'})],
-   ['Mi AP acreditada · sometida',myAP.toLocaleString('en-US',{style:'currency',currency:'USD'})],
-   ['Mi AP acreditada · Issue Paid',myPaid.toLocaleString('en-US',{style:'currency',currency:'USD'})]
-  ].map(([name,value])=><div key={name} style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{name}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>)}
+ {metric('Mis pólizas sometidas',mySubmitted.length)}
+ {metric('Mi AP sometida',fmt(myAP))}
+ {metric('Mis pólizas Issue Paid',myIssued.length)}
+ {metric('Mi AP Issue Paid reportada',fmt(myPaid))}
  </div>
+ {canViewTeam&&<React.Fragment>
+ <h3 style={{marginTop:22}}>👥 Producción de equipo</h3>
+ <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
+ {metric('Pólizas con participación del equipo',teamSubmitted.length)}
+ {metric('AP acreditada al equipo · sometida',fmt(teamAP))}
+ {metric('Pólizas Issue Paid del equipo',teamIssued.length)}
+ {metric('AP acreditada al equipo · Issue Paid',fmt(teamPaid))}
+ </div>
+ {user.role==='admin'&&<p style={{fontSize:13,marginTop:12}}>Agencia · {monthRows.length} pólizas sometidas · {fmt(monthAP)} AP total · {fmt(paidAP)} Issue Paid reportada (sin duplicar splits).</p>}
+ </React.Fragment>}
  <p style={{fontSize:12,color:'#536454',marginTop:14}}>Datos preliminares de pólizas visibles según permisos. Issue Paid es reportada, no confirmada por aseguradora. Los splits no duplican la AP total visible; la AP personal refleja solamente la participación propia.</p>
  </section>
  <div style={{display:'flex',gap:10,margin:'14px 0 22px'}}><button style={inp} onClick={()=>setTab('list')}>Mis ventas / Producción</button><button style={inp} onClick={()=>setTab('new')}>＋ Nueva póliza</button></div>
