@@ -33,7 +33,7 @@ function ProductionCenter({user,setPage}) {
  const myPaid=paidRows.reduce((n,x)=>n+myCredit(x),0);
  const mySubmitted=monthRows.filter(x=>x.agent_id===user.id||x.split_agent_id===user.id);
  const myIssued=paidRows.filter(x=>x.agent_id===user.id||x.split_agent_id===user.id);
- const memberSet=new Set(teamIds);
+ const memberSet=new Set([user.id,...teamIds]);
  const teamCredit=x=>Number(x.annual_premium)*((memberSet.has(x.agent_id)?Number(x.split_primary_pct)/100:0)+(x.split_agent_id&&memberSet.has(x.split_agent_id)?(100-Number(x.split_primary_pct))/100:0));
  const teamSubmitted=monthRows.filter(x=>memberSet.has(x.agent_id)||memberSet.has(x.split_agent_id));
  const teamIssued=paidRows.filter(x=>memberSet.has(x.agent_id)||memberSet.has(x.split_agent_id));
@@ -75,14 +75,14 @@ function ProductionCenter({user,setPage}) {
  {canViewTeam&&<React.Fragment>
  <h3 style={{marginTop:22}}>👥 Producción de equipo</h3>
  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
- {metric('Pólizas con participación del equipo',teamSubmitted.length)}
- {metric('AP acreditada al equipo · sometida',fmt(teamAP))}
+ {metric('Pólizas del equipo (incluye líder)',teamSubmitted.length)}
+ {metric('AP del equipo · sometida (incluye líder)',fmt(teamAP))}
  {metric('Pólizas Issue Paid del equipo',teamIssued.length)}
- {metric('AP acreditada al equipo · Issue Paid',fmt(teamPaid))}
+ {metric('AP del equipo · Issue Paid (incluye líder)',fmt(teamPaid))}
  </div>
  {user.role==='admin'&&<p style={{fontSize:13,marginTop:12}}>Agencia · {monthRows.length} pólizas sometidas · {fmt(monthAP)} AP total · {fmt(paidAP)} Issue Paid reportada (sin duplicar splits).</p>}
  </React.Fragment>}
- <p style={{fontSize:12,color:'#536454',marginTop:14}}>Datos preliminares de pólizas visibles según permisos. Issue Paid es reportada, no confirmada por aseguradora. Los splits no duplican la AP total visible; la AP personal refleja solamente la participación propia.</p>
+ <p style={{fontSize:12,color:'#536454',marginTop:14}}>Datos preliminares de pólizas visibles según permisos. Issue Paid es reportada, no confirmada por aseguradora. Los splits no duplican la AP total visible; la AP de equipo incluye la participación del líder y su estructura autorizada. No sumes personal y equipo.</p>
  </section>
  <div style={{display:'flex',gap:10,margin:'14px 0 22px'}}><button style={inp} onClick={()=>setTab('list')}>Mis ventas / Producción</button><button style={inp} onClick={()=>setTab('new')}>＋ Nueva póliza</button></div>
  {editing&&<section style={{padding:18,background:'#fff',border:'1px solid #bad1be',borderRadius:10,marginBottom:16}}>
