@@ -11,6 +11,7 @@ function ProductionCenter({user,setPage}) {
  const [structureError,setStructureError]=React.useState('');
  const [teamIds,setTeamIds]=React.useState([]);
  const [leaderRows,setLeaderRows]=React.useState([]);
+ const [verifiedLeaderRows,setVerifiedLeaderRows]=React.useState([]);
  const [leaderError,setLeaderError]=React.useState('');
  const [canViewTeam,setCanViewTeam]=React.useState(user.role==='admin');
  const [verificationBusy,setVerificationBusy]=React.useState(false);
@@ -37,6 +38,7 @@ function ProductionCenter({user,setPage}) {
  if(!active)return;if(error){setLeaderError('Falta habilitar el reporte de líderes en Supabase.');setLeaderRows([]);}else{setLeaderError('');setLeaderRows(data||[]);}
  });return()=>{active=false;};},[canViewTeam,period,carrierFilter,user.id]);
  React.useEffect(()=>{let active=true;setStructureError('');if(user.role!=='admin'||!structureFilter){setStructureIds([]);setStructureLoading(false);return;}setStructureLoading(true);window.flcSupabase.rpc('flc_admin_structure_member_ids',{p_leader_id:structureFilter}).then(({data,error})=>{if(!active)return;setStructureLoading(false);if(error){setStructureIds([]);setStructureError('No se pudo cargar la estructura. Ejecuta el archivo SQL 012 en Supabase.');}else setStructureIds((data||[]).map(x=>x.agent_id));});return()=>{active=false;};},[structureFilter,user.id]);
+ React.useEffect(()=>{let active=true;if(!canViewTeam)return;window.flcSupabase.rpc('flc_leader_verified_production_report',{p_month:period,p_carrier:carrierFilter||null}).then(({data,error})=>{if(active)setVerifiedLeaderRows(error?[]:data||[]);});return()=>{active=false;};},[canViewTeam,period,carrierFilter,user.id]);
  const filteredRows=rows.filter(x=>!carrierFilter||x.carrier===carrierFilter);
  const monthRows=filteredRows.filter(x=>x.submitted_on&&x.submitted_on.slice(0,7)===period);
  const monthAP=monthRows.reduce((n,x)=>n+Number(x.annual_premium),0);
@@ -47,6 +49,7 @@ function ProductionCenter({user,setPage}) {
  const myCredit=x=>Number(x.annual_premium)*(x.agent_id===user.id?Number(x.split_primary_pct)/100:x.split_agent_id===user.id?(100-Number(x.split_primary_pct))/100:0);
  const myAP=monthRows.reduce((n,x)=>n+myCredit(x),0);
  const myPaid=paidRows.reduce((n,x)=>n+myCredit(x),0);
+ const myVerified=verifiedRows.reduce((n,x)=>n+myCredit(x),0);
  const mySubmitted=monthRows.filter(x=>x.agent_id===user.id||x.split_agent_id===user.id);
  const myIssued=paidRows.filter(x=>x.agent_id===user.id||x.split_agent_id===user.id);
  const memberSet=new Set(user.role==='admin'&&structureFilter?structureIds:[user.id,...teamIds]);
@@ -55,11 +58,13 @@ function ProductionCenter({user,setPage}) {
  const teamIssued=paidRows.filter(x=>memberSet.has(x.agent_id)||memberSet.has(x.split_agent_id));
  const teamAP=teamSubmitted.reduce((n,x)=>n+teamCredit(x),0);
  const teamPaid=teamIssued.reduce((n,x)=>n+teamCredit(x),0);
+ const teamVerified=verifiedRows.reduce((n,x)=>n+teamCredit(x),0);
  const agentBreakdown=(user.role==='admin'&&structureFilter?structureIds:[user.id,...teamIds]).filter((id,i,a)=>a.indexOf(id)===i).map(id=>{
   const share=x=>Number(x.annual_premium)*(x.agent_id===id?Number(x.split_primary_pct)/100:x.split_agent_id===id?(100-Number(x.split_primary_pct))/100:0);
   const submitted=monthRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
   const issued=paidRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
-  return {id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||''),submitted:submitted.length,ap:submitted.reduce((n,x)=>n+share(x),0),issued:issued.length,paid:issued.reduce((n,x)=>n+share(x),0)};
+  const verified=verifiedRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
+  return {id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||''),submitted:submitted.length,ap:submitted.reduce((n,x)=>n+share(x),0),issued:issued.length,paid:issued.reduce((n,x)=>n+share(x),0),verified:verified.reduce((n,x)=>n+share(x),0)};
  }).filter(a=>a.submitted||a.issued).sort((a,b)=>b.ap-a.ap);
  const fmt=x=>Number(x).toLocaleString('en-US',{style:'currency',currency:'USD'});
  const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
@@ -97,6 +102,7 @@ function ProductionCenter({user,setPage}) {
  {metric('Mi AP sometida',fmt(myAP))}
  {metric('Mis pólizas Issue Paid',myIssued.length)}
  {metric('Mi AP Issue Paid reportada',fmt(myPaid))}
+ {metric('Mi AP Issue Paid verificada',fmt(myVerified))}
  </div>
  {canViewTeam&&<React.Fragment>
  <h3 style={{marginTop:22}}>👥 Producción de equipo</h3>
@@ -105,18 +111,19 @@ function ProductionCenter({user,setPage}) {
  {metric('AP del equipo · sometida (incluye líder)',fmt(teamAP))}
  {metric('Pólizas Issue Paid del equipo',teamIssued.length)}
  {metric('AP del equipo · Issue Paid (incluye líder)',fmt(teamPaid))}
+ {metric('AP del equipo · Issue Paid verificada',fmt(teamVerified))}
  </div>
  <h4 style={{margin:'20px 0 10px'}}>Detalle por agente (AP acreditada)</h4>
  <div style={{overflowX:'auto'}}>
  <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
- <thead><tr>{['Agente','Pólizas sometidas','AP sometida','Pólizas Issue Paid','AP Issue Paid'].map(t=><th key={t} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{t}</th>)}</tr></thead>
- <tbody>{agentBreakdown.map(a=><tr key={a.id}><td style={{padding:10,borderBottom:'1px solid #eee'}}>{a.name||'Agente del equipo'}</td><td>{a.submitted}</td><td>{fmt(a.ap)}</td><td>{a.issued}</td><td>{fmt(a.paid)}</td></tr>)}</tbody>
+ <thead><tr>{['Agente','Pólizas sometidas','AP sometida','Pólizas Issue Paid','AP Issue Paid','AP verificada'].map(t=><th key={t} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{t}</th>)}</tr></thead>
+ <tbody>{agentBreakdown.map(a=><tr key={a.id}><td style={{padding:10,borderBottom:'1px solid #eee'}}>{a.name||'Agente del equipo'}</td><td>{a.submitted}</td><td>{fmt(a.ap)}</td><td>{a.issued}</td><td>{fmt(a.paid)}</td><td>{fmt(a.verified)}</td></tr>)}</tbody>
  </table>{!agentBreakdown.length&&<p>Sin producción registrada para la estructura en este período.</p>}</div>
  <h4 style={{margin:'20px 0 10px'}}>Producción por líder y sublíder</h4>
  {leaderError?<p style={{color:'#9a3c28'}}>{leaderError}</p>:<div style={{overflowX:'auto'}}>
  <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
- <thead><tr>{['Líder / estructura','Pólizas sometidas','AP sometida','Pólizas Issue Paid','AP Issue Paid'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{x}</th>)}</tr></thead>
- <tbody>{leaderRows.map(a=><tr key={a.leader_id}><td style={{padding:10,borderBottom:'1px solid #eee'}}><span style={{display:'inline-block',paddingLeft:Math.max(0,Number(a.depth)||0)*20}}>{Number(a.depth)===0?'👥 ': '↳ '}{a.leader_name} <small style={{color:'#647568'}}>{Number(a.depth)===0?'(líder principal)':'(nivel '+a.depth+')'}</small></span></td><td>{a.policy_count||0}</td><td>{fmt(a.submitted_ap||0)}</td><td>{a.paid_count||0}</td><td>{fmt(a.paid_ap||0)}</td></tr>)}</tbody></table>
+ <thead><tr>{['Líder / estructura','Pólizas sometidas','AP sometida','Pólizas Issue Paid','AP Issue Paid','AP verificada'].map(x=><th key={x} style={{textAlign:'left',padding:10,borderBottom:'1px solid #ddd'}}>{x}</th>)}</tr></thead>
+ <tbody>{leaderRows.map(a=><tr key={a.leader_id}><td style={{padding:10,borderBottom:'1px solid #eee'}}><span style={{display:'inline-block',paddingLeft:Math.max(0,Number(a.depth)||0)*20}}>{Number(a.depth)===0?'👥 ': '↳ '}{a.leader_name} <small style={{color:'#647568'}}>{Number(a.depth)===0?'(líder principal)':'(nivel '+a.depth+')'}</small></span></td><td>{a.policy_count||0}</td><td>{fmt(a.submitted_ap||0)}</td><td>{a.paid_count||0}</td><td>{fmt(a.paid_ap||0)}</td><td>{fmt(verifiedLeaderRows.find(v=>v.leader_id===a.leader_id)?.paid_ap||0)}</td></tr>)}</tbody></table>
  {!leaderRows.length&&<p>No hay estructuras de líderes para mostrar.</p>}</div>}
  <p style={{fontSize:12,color:'#536454'}}>Las estructuras de un líder y sus sublíderes se superponen. No sumes las filas entre sí. Cada fila incluye al líder y todos sus descendientes.</p>
  {user.role==='admin'&&<div style={{marginTop:12,padding:14,border:'1px solid #9cbd9e',borderRadius:9,background:'#f4f9f4'}}><strong>✓ AP Issue Paid verificada (agencia)</strong><div style={{fontSize:23,fontWeight:700}}>{fmt(verifiedAP)}</div><small>Solo pólizas confirmadas por Administración. No se mezclan con Issue Paid reportada.</small></div>}
