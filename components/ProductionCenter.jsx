@@ -48,7 +48,7 @@ function ProductionCenter({user,setPage}) {
   setRankTimes({});setRankTimesError('');
   window.flcSupabase.rpc('flc_leader_verified_rank_times',{p_month:period,p_carrier:carrierFilter||null}).then(({data,error})=>{
    if(!active)return;
-   if(error){setRankTimesError('Falta ejecutar SQL 016 en Supabase para aplicar el desempate por primera verificación.');return;}
+   if(error){setRankTimesError('Falta ejecutar SQL 017 en Supabase para aplicar el desempate por primera verificación.');return;}
    setRankTimes(Object.fromEntries((data||[]).map(x=>[x.leader_id,x.reached_at])));
   });return()=>{active=false;};
  },[canViewTeam,period,carrierFilter,user.id]);
@@ -191,7 +191,7 @@ function ProductionCenter({user,setPage}) {
     <tbody>{group.items.slice(0,10).map((l,i)=><tr key={l.leader_id}><td style={{padding:8,borderTop:'1px solid #edf1ea'}}>{['🥇','🥈','🥉'][i]||i+1}</td><td style={{padding:8,borderTop:'1px solid #edf1ea'}}>{l.leader_name}</td><td style={{padding:8,borderTop:'1px solid #edf1ea',textAlign:'right',fontWeight:700}}>{fmt(l.verified)}</td></tr>)}</tbody>
    </table></div>:<p style={{fontSize:13,color:'#536454'}}>Sin estructuras con AP Issue Paid verificada en este período.</p>}
   </div>)}</div>}
-  <p style={{fontSize:12,color:'#536454',margin:'12px 0 0'}}>Ranking de líderes: incluye estructuras anidadas que pueden superponerse. Ranking de equipos: managers de nivel 1 con todos sus descendientes, sin incluir la estructura general de la agencia (nivel 0). No sumes las filas del ranking de líderes para calcular la AP total de la agencia. Ante igual AP, gana la estructura que completó primero su AP verificada (última verificación del total). Si ambos momentos son idénticos, se aplica orden alfabético técnico. El desempate por tiempo requiere SQL 016 activo.</p>
+  <p style={{fontSize:12,color:'#536454',margin:'12px 0 0'}}>Ranking de líderes: incluye estructuras anidadas que pueden superponerse. Ranking de equipos: managers de nivel 1 con todos sus descendientes, sin incluir la estructura general de la agencia (nivel 0). No sumes las filas del ranking de líderes para calcular la AP total de la agencia. Ante igual AP, gana la estructura que completó primero su AP verificada (última verificación del total). Si ambos momentos son idénticos, se aplica orden alfabético técnico. El desempate por tiempo requiere SQL 017 activo.</p>
  </section>
  <h4 style={{margin:'20px 0 10px'}}>Producción por líder y sublíder</h4>
  {leaderError?<p style={{color:'#9a3c28'}}>{leaderError}</p>:<div style={{overflowX:'auto'}}>
