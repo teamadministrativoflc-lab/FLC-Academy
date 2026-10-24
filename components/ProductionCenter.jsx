@@ -199,6 +199,7 @@ function ProductionCenter({user,setPage}) {
   :rankMode==='lead_investment'?'Proveedores: '+(a.providers||[]).join(', ')
   :a.cohortCount+' pólizas sometidas';
  const firstRecord=id=>{
+  if(rankMode==='lead_investment')return scopedLeads.filter(l=>l.agent_id===id).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))[0];
   const eligible=rankMode==='verified_ap'||rankMode==='team_average'?verifiedRows:monthRows;
   return eligible.filter(p=>participates(p,id))
    .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))[0];
@@ -207,7 +208,12 @@ function ProductionCenter({user,setPage}) {
  .sort((a,b)=>{
   const diff=rankingValue(b)-rankingValue(a);
   if(Math.abs(diff)>0.000001)return diff>0?1:-1;
-  if(rankMode==='team_average'&&b.submittedAverage!==a.submittedAverage)return b.submittedAverage-a.submittedAverage;
+  if(rankMode==='team_average'){
+   if(b.submittedAverage!==a.submittedAverage)return b.submittedAverage-a.submittedAverage;
+   const tA=a.verified_reached_at?new Date(a.verified_reached_at).getTime():Infinity;
+   const tB=b.verified_reached_at?new Date(b.verified_reached_at).getTime():Infinity;
+   return tA!==tB?tA-tB:(a.name||'').localeCompare(b.name||'','es');
+  }
   if(rankMode==='effectiveness'){
    if(b.convertedCount!==a.convertedCount)return b.convertedCount-a.convertedCount;
    if(b.cohortCount!==a.cohortCount)return b.cohortCount-a.cohortCount;
@@ -337,7 +343,7 @@ function ProductionCenter({user,setPage}) {
     rankMode==='team_average'?'Equipos de managers directos. Primer valor: AP Issue Paid verificada / agentes con IP verificada. Segundo: AP sometida / agentes que sometieron. Cada equipo incluye a su manager y descendientes.':
     'Efectividad por cohorte: pólizas sometidas en el período que llegaron a Issue Paid y fueron verificadas por Administración, divididas entre todas las sometidas de esa cohorte. Incluye verificaciones posteriores.'}
    {' · '+rangeLabel+' · '+(rankMode==='lead_investment'?'Todos los proveedores':(carrierFilter||'Todas las compañías'))}{user.role==='admin'&&structureFilter?' · Estructura seleccionada':''}.
-   Desempate de agentes: primer registro; si es la misma póliza, agente principal.
+   {rankMode==='lead_investment'?'Desempate de inversión: registro de compra más antiguo.':rankMode==='team_average'?'Desempate de equipos: mayor promedio sometido y primera verificación.':'Desempate de agentes: primer registro; si es la misma póliza, agente principal.'}
   </p>
   {rankedAgentRows.length?<React.Fragment>
    <div style={{display:'grid',gridTemplateColumns:rankedAgentRows.length===1?'minmax(0,1fr)':rankedAgentRows.length===2?'repeat(2,minmax(0,1fr))':'repeat(3,minmax(0,1fr))',gap:10,alignItems:'end'}}>
