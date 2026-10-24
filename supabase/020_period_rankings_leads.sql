@@ -74,7 +74,12 @@ AS $$
   SELECT 'team'::text AS scope,m.leader_id,m.agent_id FROM members m
   UNION ALL
   SELECT 'agency'::text,NULL::uuid AS leader_id,a.id
-  FROM public.agent_profiles a WHERE public.flc_is_admin()
+  FROM public.agent_profiles a WHERE (public.flc_is_admin() OR EXISTS(
+  SELECT 1 FROM public.flc_team_leaders owner_root
+  WHERE owner_root.agent_id=auth.uid()
+   AND NOT EXISTS(SELECT 1 FROM public.flc_team_assignments parent WHERE parent.agent_id=owner_root.agent_id)
+   AND EXISTS(SELECT 1 FROM public.flc_team_assignments child WHERE child.leader_id=owner_root.agent_id)
+ ))
  ), distinct_scopes AS (
   SELECT DISTINCT scope,leader_id,agent_id FROM scopes
  ), credited AS (
@@ -121,7 +126,12 @@ AS $$
   COALESCE(a.submitted_policies,0),COALESCE(a.verified_policies,0),a.verified_reached_at
  FROM (SELECT 1) x LEFT JOIN aggregates a ON a.scope='agency'
  LEFT JOIN participant_counts pc ON pc.scope='agency'
- WHERE auth.uid() IS NOT NULL AND public.flc_is_admin();
+ WHERE auth.uid() IS NOT NULL AND (public.flc_is_admin() OR EXISTS(
+  SELECT 1 FROM public.flc_team_leaders owner_root
+  WHERE owner_root.agent_id=auth.uid()
+   AND NOT EXISTS(SELECT 1 FROM public.flc_team_assignments parent WHERE parent.agent_id=owner_root.agent_id)
+   AND EXISTS(SELECT 1 FROM public.flc_team_assignments child WHERE child.leader_id=owner_root.agent_id)
+ ));
 $$;
 REVOKE ALL ON FUNCTION public.flc_period_team_metrics(date,date,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.flc_period_team_metrics(date,date,text) TO authenticated;
