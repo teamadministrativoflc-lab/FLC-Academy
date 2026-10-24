@@ -6,6 +6,9 @@ function ProductionCenter({user,setPage}) {
  const [period,setPeriod]=React.useState('2026-10');
  const [carrierFilter,setCarrierFilter]=React.useState('');
  const [structureFilter,setStructureFilter]=React.useState('');
+ const [structureIds,setStructureIds]=React.useState([]);
+ const [structureLoading,setStructureLoading]=React.useState(false);
+ const [structureError,setStructureError]=React.useState('');
  const [teamIds,setTeamIds]=React.useState([]);
  const [leaderRows,setLeaderRows]=React.useState([]);
  const [leaderError,setLeaderError]=React.useState('');
@@ -30,6 +33,7 @@ function ProductionCenter({user,setPage}) {
  window.flcSupabase.rpc('flc_leader_production_report',{p_month:period,p_carrier:carrierFilter||null}).then(({data,error})=>{
  if(!active)return;if(error){setLeaderError('Falta habilitar el reporte de líderes en Supabase.');setLeaderRows([]);}else{setLeaderError('');setLeaderRows(data||[]);}
  });return()=>{active=false;};},[canViewTeam,period,carrierFilter,user.id]);
+ React.useEffect(()=>{let active=true;setStructureError('');if(user.role!=='admin'||!structureFilter){setStructureIds([]);setStructureLoading(false);return;}setStructureLoading(true);window.flcSupabase.rpc('flc_admin_structure_member_ids',{p_leader_id:structureFilter}).then(({data,error})=>{if(!active)return;setStructureLoading(false);if(error){setStructureIds([]);setStructureError('No se pudo cargar la estructura. Ejecuta el archivo SQL 012 en Supabase.');}else setStructureIds((data||[]).map(x=>x.agent_id));});return()=>{active=false;};},[structureFilter,user.id]);
  const filteredRows=rows.filter(x=>!carrierFilter||x.carrier===carrierFilter);
  const monthRows=filteredRows.filter(x=>x.submitted_on&&x.submitted_on.slice(0,7)===period);
  const monthAP=monthRows.reduce((n,x)=>n+Number(x.annual_premium),0);
@@ -40,13 +44,13 @@ function ProductionCenter({user,setPage}) {
  const myPaid=paidRows.reduce((n,x)=>n+myCredit(x),0);
  const mySubmitted=monthRows.filter(x=>x.agent_id===user.id||x.split_agent_id===user.id);
  const myIssued=paidRows.filter(x=>x.agent_id===user.id||x.split_agent_id===user.id);
- const memberSet=new Set([user.id,...teamIds]);
+ const memberSet=new Set(user.role==='admin'&&structureFilter?structureIds:[user.id,...teamIds]);
  const teamCredit=x=>Number(x.annual_premium)*((memberSet.has(x.agent_id)?Number(x.split_primary_pct)/100:0)+(x.split_agent_id&&memberSet.has(x.split_agent_id)?(100-Number(x.split_primary_pct))/100:0));
  const teamSubmitted=monthRows.filter(x=>memberSet.has(x.agent_id)||memberSet.has(x.split_agent_id));
  const teamIssued=paidRows.filter(x=>memberSet.has(x.agent_id)||memberSet.has(x.split_agent_id));
  const teamAP=teamSubmitted.reduce((n,x)=>n+teamCredit(x),0);
  const teamPaid=teamIssued.reduce((n,x)=>n+teamCredit(x),0);
- const agentBreakdown=[user.id,...teamIds].filter((id,i,a)=>a.indexOf(id)===i).map(id=>{
+ const agentBreakdown=(user.role==='admin'&&structureFilter?structureIds:[user.id,...teamIds]).filter((id,i,a)=>a.indexOf(id)===i).map(id=>{
   const share=x=>Number(x.annual_premium)*(x.agent_id===id?Number(x.split_primary_pct)/100:x.split_agent_id===id?(100-Number(x.split_primary_pct))/100:0);
   const submitted=monthRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
   const issued=paidRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
@@ -79,6 +83,7 @@ function ProductionCenter({user,setPage}) {
   <label>Compañía: <select value={carrierFilter} onChange={e=>setCarrierFilter(e.target.value)} style={{padding:8}}><option value="">Todas las compañías</option>{[...new Set(rows.map(x=>x.carrier))].sort().map(x=><option key={x} value={x}>{x}</option>)}</select></label>
  </div>
  {user.role==='admin'&&<label style={{marginLeft:12}}>Estructura: <select value={structureFilter} onChange={e=>setStructureFilter(e.target.value)}><option value="">Toda la agencia</option>{leaderRows.map(l=><option key={l.leader_id} value={l.leader_id}>{l.leader_name}</option>)}</select></label>}
+ {structureLoading&&<p>Cargando estructura seleccionada…</p>}{structureError&&<p role="alert" style={{color:'#a33'}}>{structureError}</p>}
  <h3>👤 Producción personal</h3>
  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
  {metric('Mis pólizas sometidas',mySubmitted.length)}
