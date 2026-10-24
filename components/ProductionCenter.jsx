@@ -2,7 +2,7 @@ function ProductionCenter({user,setPage}) {
  const sources=['AuraFlow','LifeButton','LeadzTech AI','Ecomfy','Leads for Life','Propia campaña','Referido','Familiar / Amistad','Otro'];
  const carriers=['National Life Group','F&G','Foresters','American Amicable','Transamerica','Mutual of Omaha','Aetna','Americo','Lincoln Heritage','Occidental','Corebridge','Athene','Otro'];
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
- const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',split:'',pct:'50',date:new Date().toISOString().slice(0,10),primary:''});
+ const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',partners:[],primaryPct:'100',date:new Date().toISOString().slice(0,10),primary:''});
  const [period,setPeriod]=React.useState('2026-10');
  const [carrierFilter,setCarrierFilter]=React.useState('');
  const [structureFilter,setStructureFilter]=React.useState('');
@@ -12,7 +12,8 @@ function ProductionCenter({user,setPage}) {
  const [teamIds,setTeamIds]=React.useState([]);
  const [splitPartners,setSplitPartners]=React.useState([]);
  const [splitPartnerError,setSplitPartnerError]=React.useState('');
- const [participantNames,setParticipantNames]=React.useState({});
+ const [policyCredits,setPolicyCredits]=React.useState({});
+ const [creditsError,setCreditsError]=React.useState('');
  const [leaderRows,setLeaderRows]=React.useState([]);
  const [verifiedLeaderRows,setVerifiedLeaderRows]=React.useState([]);
  const [verifiedLeaderError,setVerifiedLeaderError]=React.useState('');
@@ -26,7 +27,12 @@ function ProductionCenter({user,setPage}) {
  const [editing,setEditing]=React.useState(null),[statusSaving,setStatusSaving]=React.useState(false);
  const [form,setForm]=React.useState(blank),[agents,setAgents]=React.useState([]),[rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(true),[saving,setSaving]=React.useState(false),[error,setError]=React.useState(''),[notice,setNotice]=React.useState(''),[tab,setTab]=React.useState('list');
  const load=async()=>{setBusy(true);setError('');const {data,error}=await window.flcSupabase.from('flc_policy_sales').select('id,agent_id,client_name,carrier,product_type,policy_number,lead_source,status,annual_premium,split_agent_id,split_primary_pct,submitted_on,approved_on,issue_paid_on,issue_paid_verified_at,issue_paid_verified_by,created_at').order('created_at',{ascending:false}).limit(250);if(error){setError('El registro aún no está habilitado en Supabase o no tienes acceso.');}else setRows(data||[]);setBusy(false);};
- React.useEffect(()=>{let active=true;window.flcSupabase.rpc('flc_visible_policy_participants').then(({data,error})=>{if(active&&!error)setParticipantNames(Object.fromEntries((data||[]).map(r=>[r.policy_id,r])));});return()=>{active=false;};},[user.id,rows.length]);
+ React.useEffect(()=>{let active=true;window.flcSupabase.rpc('flc_policy_participant_credits').then(({data,error})=>{
+  if(!active)return;
+  if(error){setCreditsError('Falta activar SQL 019 para splits múltiples.');setPolicyCredits({});return;}
+  const grouped={};(data||[]).forEach(r=>{(grouped[r.policy_id]||(grouped[r.policy_id]=[])).push(r);});
+  setPolicyCredits(grouped);setCreditsError('');
+ });return()=>{active=false;};},[user.id,rows]);
  React.useEffect(()=>{let active=true;window.flcSupabase.rpc('flc_split_partner_roster').then(({data,error})=>{if(!active)return;if(error){setSplitPartnerError('Falta habilitar la selección de agentes. Ejecuta SQL 018 en Supabase.');setSplitPartners([]);}else{setSplitPartnerError('');setSplitPartners(data||[]);}});return()=>{active=false;};},[user.id]);
  React.useEffect(()=>{load();const fetchTeam=async()=>{
   if(user.role==='admin'){
@@ -62,29 +68,35 @@ function ProductionCenter({user,setPage}) {
  const paidAP=paidRows.reduce((n,x)=>n+Number(x.annual_premium),0);
  const verifiedRows=paidRows.filter(x=>x.issue_paid_verified_at);
  const verifiedAP=verifiedRows.reduce((n,x)=>n+Number(x.annual_premium),0);
- const myCredit=x=>Number(x.annual_premium)*(x.agent_id===user.id?Number(x.split_primary_pct)/100:x.split_agent_id===user.id?(100-Number(x.split_primary_pct))/100:0);
+ const allocations=x=>policyCredits[x.id]||[
+  {agent_id:x.agent_id,pct:Number(x.split_primary_pct),is_primary:true},
+  ...(x.split_agent_id?[{agent_id:x.split_agent_id,pct:100-Number(x.split_primary_pct),is_primary:false}]:[])
+ ];
+ const participates=(x,id)=>allocations(x).some(a=>a.agent_id===id);
+ const creditFor=(x,id)=>Number(x.annual_premium)*allocations(x).filter(a=>a.agent_id===id).reduce((n,a)=>n+Number(a.pct),0)/100;
+ const myCredit=x=>creditFor(x,user.id);
  const myAP=monthRows.reduce((n,x)=>n+myCredit(x),0);
  const myPaid=paidRows.reduce((n,x)=>n+myCredit(x),0);
  const myVerified=verifiedRows.reduce((n,x)=>n+myCredit(x),0);
- const mySubmitted=monthRows.filter(x=>x.agent_id===user.id||x.split_agent_id===user.id);
- const myIssued=paidRows.filter(x=>x.agent_id===user.id||x.split_agent_id===user.id);
+ const mySubmitted=monthRows.filter(x=>participates(x,user.id));
+ const myIssued=paidRows.filter(x=>participates(x,user.id));
  const memberSet=new Set(user.role==='admin'&&structureFilter?structureIds:[user.id,...teamIds]);
- const teamCredit=x=>Number(x.annual_premium)*((memberSet.has(x.agent_id)?Number(x.split_primary_pct)/100:0)+(x.split_agent_id&&memberSet.has(x.split_agent_id)?(100-Number(x.split_primary_pct))/100:0));
- const teamSubmitted=monthRows.filter(x=>memberSet.has(x.agent_id)||memberSet.has(x.split_agent_id));
- const teamIssued=paidRows.filter(x=>memberSet.has(x.agent_id)||memberSet.has(x.split_agent_id));
+ const teamCredit=x=>Number(x.annual_premium)*allocations(x).filter(a=>memberSet.has(a.agent_id)).reduce((n,a)=>n+Number(a.pct),0)/100;
+ const teamSubmitted=monthRows.filter(x=>allocations(x).some(a=>memberSet.has(a.agent_id)));
+ const teamIssued=paidRows.filter(x=>allocations(x).some(a=>memberSet.has(a.agent_id)));
  const teamAP=teamSubmitted.reduce((n,x)=>n+teamCredit(x),0);
  const teamPaid=teamIssued.reduce((n,x)=>n+teamCredit(x),0);
  const teamVerified=verifiedRows.reduce((n,x)=>n+teamCredit(x),0);
  const agentBreakdown=(user.role==='admin'&&structureFilter?structureIds:[user.id,...teamIds]).filter((id,i,a)=>a.indexOf(id)===i).map(id=>{
-  const share=x=>Number(x.annual_premium)*(x.agent_id===id?Number(x.split_primary_pct)/100:x.split_agent_id===id?(100-Number(x.split_primary_pct))/100:0);
-  const submitted=monthRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
-  const issued=paidRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
-  const verified=verifiedRows.filter(x=>x.agent_id===id||x.split_agent_id===id);
+  const share=x=>creditFor(x,id);
+  const submitted=monthRows.filter(x=>participates(x,id));
+  const issued=paidRows.filter(x=>participates(x,id));
+  const verified=verifiedRows.filter(x=>participates(x,id));
   return {id,name:id===user.id?user.name:(agents.find(a=>a.id===id)?.full_name||''),submitted:submitted.length,ap:submitted.reduce((n,x)=>n+share(x),0),issued:issued.length,paid:issued.reduce((n,x)=>n+share(x),0),verified:verified.reduce((n,x)=>n+share(x),0)};
  }).filter(a=>a.submitted||a.issued).sort((a,b)=>b.ap-a.ap);
  // First compare credited verified AP, then earliest server-created policy.
  // For two agents tied on the same verified policy, its principal wins.
- const firstVerifiedRecord=id=>verifiedRows.filter(p=>p.agent_id===id||p.split_agent_id===id).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))[0];
+ const firstVerifiedRecord=id=>verifiedRows.filter(p=>participates(p,id)).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))[0];
  const rankAgents=(a,b)=>{
   const apDiff=Math.round((b.verified-a.verified)*100);
   if(apDiff)return apDiff;
@@ -121,6 +133,18 @@ function ProductionCenter({user,setPage}) {
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
  const inp={padding:10,border:'1px solid #ccd8cd',borderRadius:7,width:'100%',fontSize:14,background:'#fff'};
  const change=(k,v)=>setForm(x=>({...x,[k]:v}));
+ const addPartner=()=>setForm(f=>{
+  if(f.partners.length>=4)return f;
+  const n=f.partners.length+2,each=Math.floor(100/n);
+  return {...f,primaryPct:String(100-each*(n-1)),partners:[...f.partners.map(p=>({...p,pct:String(each)})),{agentId:'',pct:String(each)}]};
+ });
+ const removePartner=i=>setForm(f=>{
+  const removed=Number(f.partners[i]?.pct||0);
+  return {...f,primaryPct:String(Number(f.primaryPct||0)+removed),partners:f.partners.filter((_,j)=>j!==i)};
+ });
+ const updatePartner=(i,k,v)=>setForm(f=>({...f,partners:f.partners.map((p,j)=>j===i?{...p,[k]:v}:p)}));
+ const splitTotal=Number(form.primaryPct||0)+form.partners.reduce((n,p)=>n+Number(p.pct||0),0);
+ const primaryAgent=user.role==='admin'?(form.primary||user.id):user.id;
  const statuses=['Sometida','En revisión','Pendiente requisito','Aprobada','Issue Paid','Declinada','Cancelada','Chargeback'];
  const openHistory=async row=>{setHistoryPolicy(row);const {data,error}=await window.flcSupabase.from('flc_policy_status_history').select('id,changed_at,changed_by,previous_status,new_status,previous_approved_on,new_approved_on,previous_issue_paid_on,new_issue_paid_on').eq('policy_id',row.id).order('changed_at',{ascending:false});setHistoryRows(error?[]:data||[]);};
  const verifyPaid=async(row,verified)=>{if(verificationBusy)return;setVerificationBusy(true);setError('');setNotice('');const {error}=await window.flcSupabase.rpc('flc_admin_verify_issue_paid',{p_sale_id:row.id,p_verified:verified});setVerificationBusy(false);if(error)setError('No se pudo guardar la verificación: '+error.message);else{setNotice(verified?'Issue Paid verificada por Administración.':'Verificación retirada.');await load();}};
@@ -132,10 +156,25 @@ function ProductionCenter({user,setPage}) {
   setStatusSaving(false);if(error){setError('No se pudo actualizar el estado: '+error.message);return;}
   setEditing(null);setNotice('Estado actualizado correctamente.');await load();
  };
- const submit=async e=>{e.preventDefault();setError('');setNotice('');if(form.split && (Number(form.pct)<=0||Number(form.pct)>=100)){setError('El porcentaje principal debe ser mayor de 0 y menor de 100.');return;}if(form.split && form.split===(user.role==='admin'?(form.primary||user.id):user.id)){setError('No puedes asignar un split al mismo agente principal.');return;}
- setSaving(true);const {error}=await window.flcSupabase.rpc(user.role==='admin'?'flc_admin_create_policy':'flc_create_policy',{p_client_name:form.client,p_policy_number:form.number||null,p_carrier:form.carrier,p_product_type:form.product,p_lead_source:form.source,p_lead_source_other:form.source==='Otro'?form.other:null,p_annual_premium:Number(form.ap),p_split_agent_id:form.split||null,p_split_primary_pct:form.split?Number(form.pct):100,p_submitted_on:form.date,...(user.role==='admin'?{p_agent_id:form.primary||user.id}:{})});setSaving(false);
+ const submit=async e=>{e.preventDefault();setError('');setNotice('');
+ const all=[{agentId:primaryAgent,pct:form.primaryPct},...form.partners];
+ if(form.partners.length>4||all.some(p=>!p.agentId||!Number.isFinite(Number(p.pct))||Number(p.pct)<=0||Number(p.pct)>100)||new Set(all.map(p=>p.agentId)).size!==all.length||Math.abs(splitTotal-100)>0.001){
+  setError('Selecciona agentes distintos y porcentajes positivos que sumen exactamente 100%.');return;
+ }
+ if(form.partners.length>=2&&creditsError){setError('Para registrar 3 a 5 participantes, Administración debe ejecutar primero SQL 019 en Supabase.');return;}
+ const params={p_client_name:form.client,p_policy_number:form.number||null,p_carrier:form.carrier,p_product_type:form.product,p_lead_source:form.source,p_lead_source_other:form.source==='Otro'?form.other:null,p_annual_premium:Number(form.ap),p_submitted_on:form.date};
+ setSaving(true);
+ const {error}=form.partners.length>=2
+ ?await window.flcSupabase.rpc('flc_create_policy_multi',{...params,p_allocations:all.map(p=>({agent_id:p.agentId,pct:Number(p.pct)})),p_primary_agent_id:user.role==='admin'?primaryAgent:null})
+ :await window.flcSupabase.rpc(user.role==='admin'?'flc_admin_create_policy':'flc_create_policy',{...params,p_split_agent_id:form.partners[0]?.agentId||null,p_split_primary_pct:Number(form.primaryPct),...(user.role==='admin'?{p_agent_id:primaryAgent}:{})});
+ setSaving(false);
  if(error){setError(error.code==='23505'?'Ya hay una póliza registrada con ese número y compañía.':error.message||'No se pudo guardar.');return;}
  setNotice('Póliza registrada. Queda en estado Sometida hasta la validación administrativa.');setForm(blank());setTab('list');await load();};
+ const splitDisplay=r=>{const shares=allocations(r);if(shares.length<=1)return '—';
+  return shares.map(s=>{const name=s.full_name||(s.agent_id===user.id?user.name:(agents.find(a=>a.id===s.agent_id)||splitPartners.find(a=>a.id===s.agent_id))?.full_name)||'Agente';
+   return name+': '+Number(s.pct).toLocaleString('en-US')+'% ('+fmt(Number(r.annual_premium)*Number(s.pct)/100)+')';
+  }).join(' / ');
+ };
  return <div style={{padding:28,maxWidth:1250,margin:'auto'}}>
  <button onClick={()=>setPage('dashboard')}>← Inicio</button><h1>FLC Production Center</h1><p>Registra pólizas, consulta su estado y lleva control de splits. El agente principal puede actualizar estados de sus pólizas; Administración puede revisar todas.</p>
  <section style={{padding:18,margin:'14px 0',border:'1px solid #dce5d8',borderRadius:12,background:'#fff'}}>
@@ -238,12 +277,20 @@ function ProductionCenter({user,setPage}) {
  {field('Prima anualizada (AP) USD *',<input style={inp} required type="number" step="0.01" min="0.01" value={form.ap} onChange={e=>change('ap',e.target.value)}/>)}
  {field('Fecha de sometida *',<input style={inp} required type="date" value={form.date} onChange={e=>change('date',e.target.value)}/>)}
  {user.role==='admin'&&field('Agente principal *',<select style={inp} value={form.primary} onChange={e=>change('primary',e.target.value)}><option value="">Administración (mi cuenta)</option>{agents.map(a=><option key={a.id} value={a.id}>{a.full_name}</option>)}</select>)}
- {field('Split con otro agente (opcional)',<select style={inp} value={form.split} onChange={e=>change('split',e.target.value)} disabled={!!splitPartnerError}><option value="">Sin split</option>{splitPartners.filter(a=>a.id!==(user.role==='admin'?(form.primary||user.id):user.id)).map(a=><option value={a.id} key={a.id}>{a.full_name}</option>)}</select>)}
  {splitPartnerError&&<p role="alert" style={{gridColumn:'1/-1',color:'#a33',margin:0}}>{splitPartnerError}</p>}
- {form.split&&field('Porcentaje del agente principal *',<input style={inp} type="number" min="1" max="99" step=".01" value={form.pct} onChange={e=>change('pct',e.target.value)}/>)}
- <div style={{gridColumn:'1/-1',fontSize:13,color:'#536454'}}>Estado inicial: <strong>Sometida</strong>. {form.split?'Split propuesto: principal '+form.pct+'% · segundo agente '+(100-Number(form.pct||0))+'%.':'Sin split: 100% para el agente principal.'} Los splits pueden incluir agentes de otros equipos. La AP solo obtiene reconocimiento oficial cuando Administración verifica Issue Paid.</div>
+ {form.partners.length>0&&field('Porcentaje del agente principal *',<input style={inp} required type="number" min="0.01" max="99.99" step="0.01" value={form.primaryPct} onChange={e=>change('primaryPct',e.target.value)}/>)}
+ {form.partners.map((p,i)=><React.Fragment key={i}>
+  {field('Agente participante '+(i+2)+' *',<select required style={inp} value={p.agentId} onChange={e=>updatePartner(i,'agentId',e.target.value)} disabled={!!splitPartnerError}><option value="">Seleccionar agente</option>{splitPartners.filter(a=>a.id!==primaryAgent&&!form.partners.some((s,j)=>i!==j&&s.agentId===a.id)).map(a=><option key={a.id} value={a.id}>{a.full_name}</option>)}</select>)}
+  {field('Porcentaje participante '+(i+2)+' *',<input required style={inp} type="number" min="0.01" max="99.99" step="0.01" value={p.pct} onChange={e=>updatePartner(i,'pct',e.target.value)}/>)}
+  <button type="button" onClick={()=>removePartner(i)} style={{alignSelf:'end',padding:10}}>Quitar agente {i+2}</button>
+ </React.Fragment>)}
+ <div style={{gridColumn:'1/-1'}}><button type="button" disabled={form.partners.length>=4||!!splitPartnerError} onClick={addPartner} style={{padding:10,borderRadius:7,border:'1px solid #1a7440',background:'#eff8f1',color:'#145b32'}}>+ Agregar agente al split ({form.partners.length+1}/5)</button></div>
+ {form.partners.length>=2&&creditsError&&<p role="alert" style={{gridColumn:'1/-1',color:'#a33'}}>{creditsError}</p>}
+ <div style={{gridColumn:'1/-1',fontSize:13,color:Math.abs(splitTotal-100)>0.001?'#a33':'#536454'}}>
+  Estado inicial: <strong>Sometida</strong>. Participantes: {form.partners.length+1}/5 · Total del split: <strong>{Number(splitTotal.toFixed(2))}%</strong> (debe ser 100%). Cada agente recibe su porcentaje de la AP. Los splits admiten agentes de otros equipos. La AP solo se reconoce oficialmente cuando Administración verifica Issue Paid.
+ </div>
  <button disabled={saving} style={{padding:12,background:'#1a7440',color:'#fff',border:0,borderRadius:8,fontWeight:700,gridColumn:'1/-1'}}>{saving?'Guardando…':'Guardar póliza'}</button>
- </form>:<div style={{overflowX:'auto',background:'#fff',borderRadius:10,padding:12}}>{busy?<p>Cargando pólizas…</p>:<React.Fragment><p><strong>{rows.length}</strong> pólizas visibles según tus permisos <button type="button" onClick={load} disabled={busy} style={{marginLeft:12,background:'#176b3b',color:'#fff',border:'none',borderRadius:8,padding:'10px 16px',fontWeight:700,cursor:'pointer'}}>↻ Actualizar pólizas</button></p><table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}><thead><tr>{['Fecha','Cliente','Núm. póliza','Compañía','Producto','Lead','Estado','AP','Split','Acción'].map(k=><th key={k} style={{padding:10,textAlign:'left',borderBottom:'1px solid #ddd'}}>{k}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.id}>{[r.submitted_on,r.client_name,r.policy_number||'Pendiente',r.carrier,r.product_type,r.lead_source,r.status,'$'+Number(r.annual_premium).toLocaleString('en-US'),r.split_agent_id?(participantNames[r.id]?.primary_name|| (r.agent_id===user.id?user.name:(agents.find(a=>a.id===r.agent_id)?.full_name||'Agente principal')))+': '+r.split_primary_pct+'% ('+((r.annual_premium*r.split_primary_pct/100).toFixed(2))+' USD) / '+(participantNames[r.id]?.split_name||(agents.find(a=>a.id===r.split_agent_id)?.full_name||'Agente compartido'))+': '+(100-r.split_primary_pct)+'% ('+((r.annual_premium*(100-r.split_primary_pct)/100).toFixed(2))+' USD)':'—'].map((v,i)=><td key={i} style={{padding:10,borderBottom:'1px solid #eee'}}>{v}</td>)}<td style={{padding:10,borderBottom:'1px solid #eee'}}>{(user.role==='admin'||r.agent_id===user.id)&&<button onClick={()=>editStatus(r)} type="button" style={{background:"#176b3b",color:"#fff",padding:"9px",borderRadius:8,fontWeight:700}}>✎ Cambiar estado</button>} <button type="button" onClick={()=>openHistory(r)} style={{background:"#edf4ef",color:"#145732",padding:"9px",border:"1px solid #a7bca7",borderRadius:8,fontWeight:700}}>◷ Historial</button> {user.role==='admin'&&r.status==='Issue Paid'&&<button type="button" disabled={verificationBusy} onClick={()=>verifyPaid(r,!r.issue_paid_verified_at)} style={{display:'block',marginTop:6,padding:9,background:r.issue_paid_verified_at?'#f6ecec':'#154d2b',color:r.issue_paid_verified_at?'#8c3c3c':'white',border:'1px solid #8fae97',borderRadius:8,fontWeight:700,cursor:'pointer'}}>{r.issue_paid_verified_at?'✓ Verificada · Retirar':'✓ Verificar Issue Paid'}</button>}</td></tr>)}</tbody></table>{!rows.length&&<p>Aún no hay pólizas registradas.</p>}</React.Fragment>}</div>}
+ </form>:<div style={{overflowX:'auto',background:'#fff',borderRadius:10,padding:12}}>{busy?<p>Cargando pólizas…</p>:<React.Fragment><p><strong>{rows.length}</strong> pólizas visibles según tus permisos <button type="button" onClick={load} disabled={busy} style={{marginLeft:12,background:'#176b3b',color:'#fff',border:'none',borderRadius:8,padding:'10px 16px',fontWeight:700,cursor:'pointer'}}>↻ Actualizar pólizas</button></p><table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}><thead><tr>{['Fecha','Cliente','Núm. póliza','Compañía','Producto','Lead','Estado','AP','Split','Acción'].map(k=><th key={k} style={{padding:10,textAlign:'left',borderBottom:'1px solid #ddd'}}>{k}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.id}>{[r.submitted_on,r.client_name,r.policy_number||'Pendiente',r.carrier,r.product_type,r.lead_source,r.status,'$'+Number(r.annual_premium).toLocaleString('en-US'),splitDisplay(r)].map((v,i)=><td key={i} style={{padding:10,borderBottom:'1px solid #eee'}}>{v}</td>)}<td style={{padding:10,borderBottom:'1px solid #eee'}}>{(user.role==='admin'||r.agent_id===user.id)&&<button onClick={()=>editStatus(r)} type="button" style={{background:"#176b3b",color:"#fff",padding:"9px",borderRadius:8,fontWeight:700}}>✎ Cambiar estado</button>} <button type="button" onClick={()=>openHistory(r)} style={{background:"#edf4ef",color:"#145732",padding:"9px",border:"1px solid #a7bca7",borderRadius:8,fontWeight:700}}>◷ Historial</button> {user.role==='admin'&&r.status==='Issue Paid'&&<button type="button" disabled={verificationBusy} onClick={()=>verifyPaid(r,!r.issue_paid_verified_at)} style={{display:'block',marginTop:6,padding:9,background:r.issue_paid_verified_at?'#f6ecec':'#154d2b',color:r.issue_paid_verified_at?'#8c3c3c':'white',border:'1px solid #8fae97',borderRadius:8,fontWeight:700,cursor:'pointer'}}>{r.issue_paid_verified_at?'✓ Verificada · Retirar':'✓ Verificar Issue Paid'}</button>}</td></tr>)}</tbody></table>{!rows.length&&<p>Aún no hay pólizas registradas.</p>}</React.Fragment>}</div>}
  {historyPolicy&&<section style={{padding:16,background:'#fff',border:'1px solid #dce5d8',borderRadius:10,marginTop:16}}><h3>Historial de estados · {historyPolicy.policy_number||historyPolicy.client_name}</h3><button type="button" onClick={()=>setHistoryPolicy(null)}>Cerrar</button>{historyRows.length?historyRows.map(h=><p key={h.id}>{new Date(h.changed_at).toLocaleString('es-US')} · <strong>{h.changed_by===user.id?user.name:(agents.find(a=>a.id===h.changed_by)?.full_name||'Usuario '+(h.changed_by?h.changed_by.slice(0,8):'no identificado'))}</strong> · {h.previous_status||'—'} → {h.new_status}</p>):<p>Sin cambios registrados desde que se activó el historial.</p>}</section>}
  </div>;
 }
