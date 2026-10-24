@@ -3,12 +3,22 @@ function ProductionCenter({user,setPage}) {
  const carriers=['National Life Group','F&G','Foresters','American Amicable','Transamerica','Mutual of Omaha','Aetna','Americo','Lincoln Heritage','Occidental','Corebridge','Athene','Otro'];
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',split:'',pct:'50',date:new Date().toISOString().slice(0,10),primary:''});
+ const [editing,setEditing]=React.useState(null),[statusSaving,setStatusSaving]=React.useState(false);
  const [form,setForm]=React.useState(blank),[agents,setAgents]=React.useState([]),[rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(true),[saving,setSaving]=React.useState(false),[error,setError]=React.useState(''),[notice,setNotice]=React.useState(''),[tab,setTab]=React.useState('list');
- const load=async()=>{setBusy(true);setError('');const {data,error}=await window.flcSupabase.from('flc_policy_sales').select('id,agent_id,client_name,carrier,product_type,policy_number,lead_source,status,annual_premium,split_agent_id,split_primary_pct,submitted_on,created_at').order('created_at',{ascending:false}).limit(250);if(error){setError('El registro aún no está habilitado en Supabase o no tienes acceso.');}else setRows(data||[]);setBusy(false);};
+ const load=async()=>{setBusy(true);setError('');const {data,error}=await window.flcSupabase.from('flc_policy_sales').select('id,agent_id,client_name,carrier,product_type,policy_number,lead_source,status,annual_premium,split_agent_id,split_primary_pct,submitted_on,approved_on,issue_paid_on,created_at').order('created_at',{ascending:false}).limit(250);if(error){setError('El registro aún no está habilitado en Supabase o no tienes acceso.');}else setRows(data||[]);setBusy(false);};
  React.useEffect(()=>{load();const fetchAgents=async()=>{const {data}=await window.flcSupabase.rpc('flc_admin_team_roster');if(user.role==='admin'&&data)setAgents(data);};fetchAgents();},[user.id]);
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
  const inp={padding:10,border:'1px solid #ccd8cd',borderRadius:7,width:'100%',fontSize:14,background:'#fff'};
  const change=(k,v)=>setForm(x=>({...x,[k]:v}));
+ const statuses=['Sometida','En revisión','Pendiente requisito','Aprobada','Issue Paid','Declinada','Cancelada','Chargeback'];
+ const editStatus=row=>{setEditing({id:row.id,status:row.status,approved_on:row.approved_on||'',issue_paid_on:row.issue_paid_on||''});setError('');setNotice('');};
+ const saveStatus=async()=>{if(!editing||statusSaving)return;setStatusSaving(true);setError('');setNotice('');
+  const {error}=await window.flcSupabase.rpc('flc_admin_update_policy_status',{
+   p_sale_id:editing.id,p_status:editing.status,p_approved_on:editing.approved_on||null,p_issue_paid_on:editing.issue_paid_on||null
+  });
+  setStatusSaving(false);if(error){setError('No se pudo actualizar el estado: '+error.message);return;}
+  setEditing(null);setNotice('Estado actualizado correctamente.');await load();
+ };
  const submit=async e=>{e.preventDefault();setError('');setNotice('');if(form.split && (Number(form.pct)<=0||Number(form.pct)>=100)){setError('El porcentaje principal debe ser mayor de 0 y menor de 100.');return;}
  setSaving(true);const {error}=await window.flcSupabase.rpc(user.role==='admin'?'flc_admin_create_policy':'flc_create_policy',{p_client_name:form.client,p_policy_number:form.number||null,p_carrier:form.carrier,p_product_type:form.product,p_lead_source:form.source,p_lead_source_other:form.source==='Otro'?form.other:null,p_annual_premium:Number(form.ap),p_split_agent_id:form.split||null,p_split_primary_pct:form.split?Number(form.pct):100,p_submitted_on:form.date,...(user.role==='admin'?{p_agent_id:form.primary||user.id}:{})});setSaving(false);
  if(error){setError(error.code==='23505'?'Ya hay una póliza registrada con ese número y compañía.':error.message||'No se pudo guardar.');return;}
@@ -16,6 +26,18 @@ function ProductionCenter({user,setPage}) {
  return <div style={{padding:28,maxWidth:1250,margin:'auto'}}>
  <button onClick={()=>setPage('dashboard')}>← Inicio</button><h1>FLC Production Center</h1><p>Registra pólizas, consulta su estado y lleva control de splits. Solo Administración puede validar cambios de estado.</p>
  <div style={{display:'flex',gap:10,margin:'14px 0 22px'}}><button style={inp} onClick={()=>setTab('list')}>Mis ventas / Producción</button><button style={inp} onClick={()=>setTab('new')}>＋ Nueva póliza</button></div>
+ {user.role==='admin'&&editing&&<section style={{padding:18,background:'#fff',border:'1px solid #bad1be',borderRadius:10,marginBottom:16}}>
+  <h2 style={{fontSize:18}}>Actualizar estado de póliza</h2>
+  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12}}>
+   {field('Estado *',<select style={inp} value={editing.status} onChange={e=>setEditing(v=>({...v,status:e.target.value}))}>{statuses.map(x=><option key={x} value={x}>{x}</option>)}</select>)}
+   {field('Fecha de aprobación',<input type="date" style={inp} value={editing.approved_on} onChange={e=>setEditing(v=>({...v,approved_on:e.target.value}))}/>)}
+   {field('Fecha Issue Paid',<input type="date" style={inp} value={editing.issue_paid_on} onChange={e=>setEditing(v=>({...v,issue_paid_on:e.target.value}))}/>)}
+  </div>
+  <div style={{display:'flex',gap:10,marginTop:12}}>
+   <button disabled={statusSaving} onClick={saveStatus} style={{background:'#14713d',color:'#fff',padding:10,border:0,borderRadius:7}}>{statusSaving?'Guardando…':'Guardar estado'}</button>
+   <button onClick={()=>setEditing(null)} type="button">Cancelar</button>
+  </div>
+ </section>}
  {error&&<p role="alert" style={{color:'#a22'}}>{error}</p>}{notice&&<p role="status" style={{color:'#24773f'}}>{notice}</p>}
  {tab==='new'?<form onSubmit={submit} style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16,background:'#fff',padding:22,border:'1px solid #dae5d9',borderRadius:12}}>
  {field('Nombre del cliente *',<input required maxLength={150} style={inp} value={form.client} onChange={e=>change('client',e.target.value)}/>)}
@@ -31,7 +53,7 @@ function ProductionCenter({user,setPage}) {
  {form.split&&field('Porcentaje del agente principal *',<input style={inp} type="number" min="1" max="99" step=".01" value={form.pct} onChange={e=>change('pct',e.target.value)}/>)}
  <div style={{gridColumn:'1/-1',fontSize:13,color:'#536454'}}>Estado inicial: <strong>Sometida</strong>. En un split, el porcentaje del segundo agente es {100-Number(form.pct||0)}%. En esta primera versión, las asignaciones de split se realizan desde Administración.</div>
  <button disabled={saving} style={{padding:12,background:'#1a7440',color:'#fff',border:0,borderRadius:8,fontWeight:700,gridColumn:'1/-1'}}>{saving?'Guardando…':'Guardar póliza'}</button>
- </form>:<div style={{overflowX:'auto',background:'#fff',borderRadius:10,padding:12}}>{busy?<p>Cargando pólizas…</p>:<React.Fragment><p><strong>{rows.length}</strong> pólizas visibles según tus permisos <button onClick={load}>Actualizar</button></p><table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}><thead><tr>{['Fecha','Cliente','Núm. póliza','Compañía','Producto','Lead','Estado','AP','Split'].map(k=><th key={k} style={{padding:10,textAlign:'left',borderBottom:'1px solid #ddd'}}>{k}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.id}>{[r.submitted_on,r.client_name,r.policy_number||'Pendiente',r.carrier,r.product_type,r.lead_source,r.status,'$'+Number(r.annual_premium).toLocaleString('en-US'),r.split_agent_id?'Principal: '+r.split_primary_pct+'% ('+((r.annual_premium*r.split_primary_pct/100).toFixed(2))+' USD) / '+(agents.find(a=>a.id===r.split_agent_id)?.full_name||'Agente compartido')+': '+(100-r.split_primary_pct)+'% ('+((r.annual_premium*(100-r.split_primary_pct)/100).toFixed(2))+' USD)':'—'].map((v,i)=><td key={i} style={{padding:10,borderBottom:'1px solid #eee'}}>{v}</td>)}</tr>)}</tbody></table>{!rows.length&&<p>Aún no hay pólizas registradas.</p>}</React.Fragment>}</div>}
+ </form>:<div style={{overflowX:'auto',background:'#fff',borderRadius:10,padding:12}}>{busy?<p>Cargando pólizas…</p>:<React.Fragment><p><strong>{rows.length}</strong> pólizas visibles según tus permisos <button onClick={load}>Actualizar</button></p><table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}><thead><tr>{['Fecha','Cliente','Núm. póliza','Compañía','Producto','Lead','Estado','AP','Split',...(user.role==='admin'?['Acción']:[])].map(k=><th key={k} style={{padding:10,textAlign:'left',borderBottom:'1px solid #ddd'}}>{k}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.id}>{[r.submitted_on,r.client_name,r.policy_number||'Pendiente',r.carrier,r.product_type,r.lead_source,r.status,'$'+Number(r.annual_premium).toLocaleString('en-US'),r.split_agent_id?'Principal: '+r.split_primary_pct+'% ('+((r.annual_premium*r.split_primary_pct/100).toFixed(2))+' USD) / '+(agents.find(a=>a.id===r.split_agent_id)?.full_name||'Agente compartido')+': '+(100-r.split_primary_pct)+'% ('+((r.annual_premium*(100-r.split_primary_pct)/100).toFixed(2))+' USD)':'—'].map((v,i)=><td key={i} style={{padding:10,borderBottom:'1px solid #eee'}}>{v}</td>)}{user.role==='admin'&&<td style={{padding:10,borderBottom:'1px solid #eee'}}><button onClick={()=>editStatus(r)} type="button">Cambiar estado</button></td>}</tr>)}</tbody></table>{!rows.length&&<p>Aún no hay pólizas registradas.</p>}</React.Fragment>}</div>}
  </div>;
 }
 window.ProductionCenter=ProductionCenter;
