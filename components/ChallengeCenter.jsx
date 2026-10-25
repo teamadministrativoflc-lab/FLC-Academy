@@ -3,10 +3,13 @@ function ChallengeCenter({user,setPage,isLeader}) {
  const canManage=isAdmin||isLeader;
  const owns=c=>isAdmin||(c.created_by===user.id&&c.owner_agent_id===user.id);
  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- const blank=()=>({id:null,title:'',description:'',participant_scope:'individual',metric:'verified_ap',target:'10000',starts_on:today,ends_on:today,status:'draft'});
+ const blank=()=>({id:null,title:'',description:'',participant_scope:'individual',audience_mode:'all',selected_ids:[],metric:'verified_ap',target:'10000',starts_on:today,ends_on:today,status:'draft'});
  const [form,setForm]=React.useState(blank);
  const [editing,setEditing]=React.useState(false);
  const [rows,setRows]=React.useState([]);
+ const [candidates,setCandidates]=React.useState([]);
+ const [candidateSearch,setCandidateSearch]=React.useState('');
+ const [candidateError,setCandidateError]=React.useState('');
  const [selected,setSelected]=React.useState(null);
  const [leaderboard,setLeaderboard]=React.useState([]);
  const [rewards,setRewards]=React.useState([]);
@@ -26,13 +29,23 @@ function ChallengeCenter({user,setPage,isLeader}) {
  const fmt=(n,m)=>m==='submitted_policies'?Number(n||0).toLocaleString('es-US',{maximumFractionDigits:0}):money(n);
  const load=React.useCallback(async()=>{
   const {data,error}=await window.flcSupabase.from('flc_production_challenges')
-   .select('id,title,description,participant_scope,metric,target,starts_on,ends_on,status,created_by,owner_agent_id,created_at,updated_at')
+   .select('id,title,description,participant_scope,audience_mode,metric,target,starts_on,ends_on,status,created_by,owner_agent_id,created_at,updated_at')
    .order('starts_on',{ascending:false}).limit(100);
   if(error){setRows([]);setError('Retos aún no activados. Administración debe ejecutar SQL 028: '+error.message);}
   else{setRows(data||[]);setError('');setSelected(prev=>prev&&(data||[]).some(x=>x.id===prev)?prev:(data||[])[0]?.id||null);}
   setLoading(false);
  },[]);
  React.useEffect(()=>{load();},[load]);
+ React.useEffect(()=>{
+  if(!canManage)return;
+  let alive=true;
+  window.flcSupabase.rpc('flc_challenge_candidates').then(({data,error})=>{
+   if(!alive)return;
+   if(error){setCandidateError('La selección de participantes requiere SQL 037.');setCandidates([]);}
+   else{setCandidates(data||[]);setCandidateError('');}
+  });
+  return()=>{alive=false;};
+ },[canManage]);
  const loadHall=React.useCallback(async()=>{
   const {data,error}=await window.flcSupabase.rpc('flc_challenge_hall_of_fame');
   if(error){setHall([]);setHallError('El historial estará disponible después de ejecutar SQL 032.');}
@@ -62,10 +75,17 @@ function ChallengeCenter({user,setPage,isLeader}) {
  const begin=()=>{
   setForm(blank());setEditing(true);setError('');setNotice('');
  };
- const edit=c=>{
+ const edit=async c=>{
+  setError('');setNotice('');
+  let ids=[];
+  if(c.audience_mode==='selected'){
+   const {data,error}=await window.flcSupabase.rpc('flc_challenge_selected_for',{p_challenge_id:c.id});
+   if(error){setError('No se pudo cargar la selección original: '+error.message);return;}
+   ids=(data||[]).map(x=>x.agent_id);
+  }
   setForm({id:c.id,title:c.title,description:c.description||'',participant_scope:c.participant_scope,
-    metric:c.metric,target:String(c.target),starts_on:c.starts_on,ends_on:c.ends_on,status:c.status});
-  setEditing(true);setError('');setNotice('');
+    audience_mode:c.audience_mode||'all',selected_ids:ids,metric:c.metric,target:String(c.target),starts_on:c.starts_on,ends_on:c.ends_on,status:c.status});
+  setCandidateSearch('');setEditing(true);
  };
  const save=async e=>{
   e.preventDefault();setError('');setNotice('');
@@ -74,13 +94,16 @@ function ChallengeCenter({user,setPage,isLeader}) {
     (form.metric==='submitted_policies'&&!Number.isInteger(target))){
    setError('Completa un nombre (mínimo 5 caracteres), meta válida y fechas correctas.');return;
   }
+  if(form.audience_mode==='selected'&&form.selected_ids.length===0){setError('Elige al menos un agente participante.');return;}
+  if(form.audience_mode==='selected'&&candidateError){setError(candidateError);return;}
   if(form.id&&!window.confirm('Vas a modificar un reto existente. El cambio quedará registrado y puede afectar el marcador. ¿Continuar?'))return;
   if(!form.id&&form.status==='active'&&!window.confirm('¿Activar este reto ahora? Los agentes podrán verlo inmediatamente.'))return;
   setSaving(true);
-  const {data,error}=await window.flcSupabase.rpc(isAdmin?'flc_admin_save_challenge':'flc_leader_save_challenge',{
+  const {data,error}=await window.flcSupabase.rpc('flc_save_targeted_challenge',{ 
    p_id:form.id,p_title:form.title.trim(),p_description:form.description.trim(),
    p_scope:form.participant_scope,p_metric:form.metric,p_target:target,
-   p_starts_on:form.starts_on,p_ends_on:form.ends_on,p_status:form.status
+   p_starts_on:form.starts_on,p_ends_on:form.ends_on,p_status:form.status,
+   p_audience_mode:form.audience_mode,p_agent_ids:form.audience_mode==='selected'?form.selected_ids:[]
   });
   setSaving(false);
   if(error){setError('No se pudo guardar: '+error.message);return;}
@@ -121,7 +144,7 @@ function ChallengeCenter({user,setPage,isLeader}) {
    <h3 style={{marginTop:0}}>{form.id?'Editar reto':'Nuevo reto'}</h3>
    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))',gap:15}}>
     <label>Nombre del reto <input required maxLength={100} minLength={5} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} style={{display:'block',width:'100%',padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}} placeholder="Ej.: Semana de Campeones"/></label>
-    <label>Participantes <select value={form.participant_scope} onChange={e=>setForm(f=>({...f,participant_scope:e.target.value}))} style={{display:'block',width:'100%',padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}}>
+    <label>Participantes <select value={form.participant_scope} onChange={e=>setForm(f=>({...f,participant_scope:e.target.value,audience_mode:e.target.value==='team'?'all':f.audience_mode,selected_ids:e.target.value==='team'?[]:f.selected_ids}))} style={{display:'block',width:'100%',padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}}>
      <option value="individual">Agentes individuales</option><option value="team">Managers directos y sus equipos</option>
     </select></label>
     <label>Categoría <select value={form.metric} onChange={e=>setForm(f=>({...f,metric:e.target.value,target:e.target.value==='submitted_policies'?'3':'10000'}))} style={{display:'block',width:'100%',padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}}>
@@ -131,9 +154,27 @@ function ChallengeCenter({user,setPage,isLeader}) {
     <label>Desde <input type="date" required value={form.starts_on} onChange={e=>setForm(f=>({...f,starts_on:e.target.value}))} style={{display:'block',width:'100%',padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}} /></label>
     <label>Hasta <input type="date" required value={form.ends_on} onChange={e=>setForm(f=>({...f,ends_on:e.target.value}))} style={{display:'block',width:'100%',padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}} /></label>
     <label>Publicación <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={{display:'block',width:'100%',padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}}>
-     <option value="draft">Borrador (solo administración)</option><option value="active">Activo (visible a agentes)</option><option value="archived">Archivado</option>
+     <option value="draft">Borrador (no visible a participantes)</option><option value="active">Activo (visible a agentes)</option><option value="archived">Archivado</option>
     </select></label>
    </div>
+   {form.participant_scope==='individual'&&<div style={{marginTop:14,padding:14,border:'1px solid #cddcc9',borderRadius:10,background:'#f7faf5'}}>
+    <label>Dirigido a <select value={form.audience_mode} onChange={e=>setForm(f=>({...f,audience_mode:e.target.value,selected_ids:e.target.value==='all'?[]:f.selected_ids}))} style={{display:'block',width:'100%',maxWidth:440,padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}}>
+     <option value="all">{isAdmin?'Toda la agencia':'Toda mi estructura'}</option>
+     <option value="selected">Agentes seleccionados</option>
+    </select></label>
+    {form.audience_mode==='selected'&&<div style={{marginTop:12}}>
+     <p style={{fontSize:13,margin:'0 0 8px'}}>Solo podrán competir los agentes elegidos. {isAdmin?'Administración puede seleccionar agentes de toda FLC.':'Solo puedes seleccionar integrantes de tu estructura.'}</p>
+     {candidateError&&<p role="alert" style={{color:'#963f28'}}>{candidateError}</p>}
+     <input type="search" placeholder="Buscar agente por nombre" value={candidateSearch} onChange={e=>setCandidateSearch(e.target.value)} style={{width:'100%',maxWidth:420,padding:10,border:'1px solid #ced8c8',borderRadius:8}} />
+     <p style={{fontSize:12,color:'#566e57'}}>{form.selected_ids.length} participante(s) seleccionado(s). Los no seleccionados no verán el reto privado.</p>
+     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:6,maxHeight:220,overflowY:'auto'}}>
+      {candidates.filter(a=>a.full_name.toLowerCase().includes(candidateSearch.toLowerCase())).slice(0,100).map(a=><label key={a.id} style={{padding:7,border:'1px solid #e0e9d9',borderRadius:7,background:'#fff',display:'flex',gap:8,alignItems:'center'}}>
+       <input type="checkbox" checked={form.selected_ids.includes(a.id)} onChange={e=>setForm(f=>({...f,selected_ids:e.target.checked?[...f.selected_ids,a.id]:f.selected_ids.filter(x=>x!==a.id)}))}/>{a.full_name}
+      </label>)}
+     </div>
+     {form.selected_ids.length>0&&<p style={{fontSize:12,color:'#456543'}}>Elegidos: {form.selected_ids.map(id=>candidates.find(x=>x.id===id)?.full_name||'Agente no disponible').join(', ')}</p>}
+    </div>}
+   </div>}
    <label style={{display:'block',marginTop:12}}>Descripción <textarea value={form.description} maxLength={500} onChange={e=>setForm(f=>({...f,description:e.target.value}))} rows={2} style={{display:'block',width:'100%',padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}} placeholder="Condiciones o premios que quieras anunciar"/></label>
    <p style={summaryStyle}>Puedes hacer retos diarios, semanales o mensuales con sus fechas. Los cambios a retos existentes se registran en auditoría. Los líderes solo gestionan retos de sus propias estructuras.</p>
    <div style={{display:'flex',gap:10}}>
@@ -148,7 +189,7 @@ function ChallengeCenter({user,setPage,isLeader}) {
     <div style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'start'}}><strong style={{fontSize:17}}>{c.title}</strong><span style={{fontSize:12,color:c.status==='active'?'#188044':'#755820'}}>{state(c)}</span></div>
     <p style={summaryStyle}>{c.starts_on} al {c.ends_on} · {scopes[c.participant_scope]}</p>
     <div style={{fontSize:14,color:'#2e5535',fontWeight:700}}>{metrics[c.metric]} · Meta {fmt(c.target,c.metric)}</div>
-    <div style={{fontSize:12,color:'#697963',marginTop:5}}>{c.owner_agent_id?'Reto de estructura':'Reto de toda la agencia'}</div>
+    <div style={{fontSize:12,color:'#697963',marginTop:5}}>{c.owner_agent_id?'Reto de estructura':'Reto de toda la agencia'} · {c.audience_mode==='selected'?'Participantes seleccionados':'Todos los elegibles'}</div>
     <p style={{fontSize:13,color:'#647365'}}>{c.description}</p>
     <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
      <button onClick={()=>setSelected(c.id)} style={{padding:'7px 12px',background:'#e4f0d7',borderRadius:7}}>🏆 Ver marcador</button>
