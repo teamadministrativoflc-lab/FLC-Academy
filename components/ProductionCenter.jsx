@@ -435,9 +435,9 @@ function ProductionCenter({user,setPage}) {
      <div style={{fontSize:36,fontWeight:800,marginTop:7}}>{myPosition?'#'+myPosition:'—'}</div>
      <strong>{user.name}</strong><div style={{color:'#cef3d5',marginTop:5}}>{myStanding?positionAmount(myStanding):'Sin pólizas sometidas en este período'}</div>
      {myStanding&&<div style={{marginTop:12,fontSize:13,lineHeight:1.65,color:'#fff'}}>
-      <div><strong>{missingPolicies===0?'✓ Lideras en cantidad':'A '+missingPolicies+' póliza(s) del líder en cantidad'}</strong></div>
-      <div><strong>{missingAp===0?'✓ Lideras en AP sometida':'A '+fmt(missingAp)+' del líder en AP sometida'}</strong></div>
-      <small style={{color:'#b0d2bb'}}>Comparación con el #1 de cada categoría, usando tu AP acreditada por split.</small>
+      <div><strong>{missingPolicies===0?'✓ Eres el #1 por cantidad':'A '+missingPolicies+' póliza(s) del agente #1 por cantidad'}</strong></div>
+      <div><strong>{missingAp===0?'✓ Eres el #1 por AP sometida':'A '+fmt(missingAp)+' del agente #1 por AP sometida'}</strong></div>
+      <small style={{color:'#b0d2bb'}}>Se compara la producción individual de todos los agentes, sin importar su título. AP según split.</small>
      </div>}
     </div>
     <div style={{background:'#263b36',padding:15,border:'1px solid #587866',borderRadius:12}}>
