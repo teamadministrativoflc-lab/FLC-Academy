@@ -56,7 +56,7 @@ function LiveSalesFeed({user}) {
    '*Estado:* '+(r.status||'Sometida'),
    '',
    '*¡Felicidades, '+firstNames+'!*',
-   '¡Seguimos construyendo legados!'].join('\\n');
+   '¡Seguimos construyendo legados!'].join('\n');
  };
  const copy=async r=>{try{await navigator.clipboard.writeText(message(r));setError('✓ Mensaje copiado para compartir.');}catch(e){setError('No se pudo copiar. Usa Compartir por WhatsApp.');}};
  const whatsApp=r=>window.open('https://wa.me/?text='+encodeURIComponent(message(r)),'_blank','noopener,noreferrer');
