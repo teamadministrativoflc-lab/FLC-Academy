@@ -342,9 +342,8 @@ function ProductionCenter({user,setPage}) {
  const editAP=row=>{setApEditing({id:row.id,client_name:row.client_name,oldAp:row.annual_premium,newAp:String(row.annual_premium),reason:'',verified:!!row.issue_paid_verified_at});setError('');setNotice('');};
  const saveAP=async()=>{if(!apEditing||apSaving)return;
   const amount=Number(apEditing.newAp),reason=apEditing.reason.trim();
-  if(!Number.isFinite(amount)||amount<=0||!/^\\d+(\\.\\d{1,2})?$/.test(apEditing.newAp.trim())){setError('Introduce una AP positiva con máximo 2 decimales.');return;}
+  if(!Number.isFinite(amount)||amount<=0||!/^\d+(\.\d{1,2})?$/.test(apEditing.newAp.trim())){setError('Introduce una AP positiva con máximo 2 decimales.');return;}
   if(reason.length<5){setError('Escribe el motivo de la corrección (mínimo 5 caracteres).');return;}
-  if(!window.confirm('¿Confirmas cambiar la AP de '+apEditing.client_name+' de '+fmt(apEditing.oldAp)+' a '+fmt(amount)+'? La fecha de sometimiento y los porcentajes de split no cambiarán.'))return;
   setApSaving(true);setError('');setNotice('');
   const {data,error}=await window.flcSupabase.rpc('flc_request_policy_ap_correction',{p_sale_id:apEditing.id,p_new_ap:amount,p_reason:reason});
   setApSaving(false);
@@ -660,6 +659,8 @@ function ProductionCenter({user,setPage}) {
   {apEditing.verified&&<p style={{color:'#92550c',fontWeight:700}}>Esta póliza ya está verificada: se enviará una solicitud a Administración. Su producción no cambiará hasta que se apruebe.</p>}
   <label>AP corregida <input type="number" min="0.01" step="0.01" value={apEditing.newAp} onChange={e=>setApEditing(v=>({...v,newAp:e.target.value}))} style={{padding:10,margin:'0 12px',border:'1px solid #aac4aa',borderRadius:7}}/></label>
   <label style={{display:'block',marginTop:12}}>Motivo del cambio <textarea maxLength={500} value={apEditing.reason} onChange={e=>setApEditing(v=>({...v,reason:e.target.value}))} rows={2} placeholder="Ej.: el cliente redujo la prima mensual" style={{display:'block',width:'min(100%,620px)',padding:10,border:'1px solid #aac4aa',borderRadius:7}}/></label>
+  {error&&<p role="alert" style={{color:'#a12d28',fontWeight:700,marginTop:12}}>{error}</p>}
+  <p style={{fontSize:12,color:'#536454',marginTop:10}}>Al guardar, confirmas el importe y el motivo. La corrección quedará registrada en el historial.</p>
   <div style={{display:'flex',gap:10,marginTop:12}}>
    <button type="button" disabled={apSaving} onClick={saveAP} style={{background:'#176b3b',color:'white',border:0,borderRadius:8,padding:11,fontWeight:700}}>{apSaving?'Guardando…':apEditing.verified?'Solicitar aprobación':'Guardar corrección'}</button>
    <button type="button" disabled={apSaving} onClick={()=>setApEditing(null)}>Cancelar</button>
