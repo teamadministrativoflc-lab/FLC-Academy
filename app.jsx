@@ -116,6 +116,7 @@ function App() {
         {pages[page] || pages.dashboard}
       </div>
 
+      <LiveSalesFeed user={user} />
       {showWelcome && (
         <WelcomeVideo user={user} lang={lang} onClose={() => setShowWelcome(false)} />
       )}
