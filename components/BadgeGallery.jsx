@@ -48,7 +48,7 @@ function BadgeGallery({user,setPage}) {
    '*Mes del logro:* '+month(r.period_month),'',
    '*Felicidades por este logro!*',
    'Seguimos construyendo legados!'
-  ].join('\\n');
+  ].join('\n');
  };
  const share=r=>window.open('https://wa.me/?text='+encodeURIComponent(plainFor(r)),'_blank','noopener,noreferrer');
  const reconcile=async()=>{
