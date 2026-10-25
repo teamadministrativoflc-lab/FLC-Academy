@@ -72,6 +72,6 @@ function ChallengeCelebrations({user}) {
    </div>
    <p style={{fontSize:11,color:'#706545',padding:10,margin:0}}>Reconocimientos de metas registradas; WhatsApp requiere elegir el grupo y enviar.</p>
   </aside>}
-  <button type="button" onClick={toggle} aria-label="Abrir celebraciones de retos" style={{position:'fixed',right:22,bottom:225,zIndex:1000,width:55,height:55,borderRadius:'50%',background:'#c7a447',border:'3px solid #f4de8a',boxShadow:'0 5px 18px #0003',fontSize:23}}>🏅{unread>0&&!open&&<span style={{position:'absolute',right:-6,top:-6,background:'#c33',color:'#fff',borderRadius:18,padding:'2px 6px',fontSize:12}}>{unread}</span>}</button>
+  <button className="flc-float-challenges" type="button" onClick={toggle} aria-label="Abrir celebraciones de retos" style={{position:'fixed',right:22,bottom:225,zIndex:1000,width:55,height:55,borderRadius:'50%',background:'#c7a447',border:'3px solid #f4de8a',boxShadow:'0 5px 18px #0003',fontSize:23}}>🏅{unread>0&&!open&&<span style={{position:'absolute',right:-6,top:-6,background:'#c33',color:'#fff',borderRadius:18,padding:'2px 6px',fontSize:12}}>{unread}</span>}</button>
  </React.Fragment>;
 }

@@ -42,7 +42,7 @@ function AgentPositionFloater({user,setPage}) {
    </React.Fragment>}
    <button type="button" onClick={()=>{setOpen(false);setPage('production');}} style={{marginTop:14,width:'100%',padding:10,background:'#166839',color:'#fff',border:0,borderRadius:8,cursor:'pointer'}}>Ver ranking completo</button>
   </aside>}
-  <button type="button" aria-label={rank?'Tu posición de '+periodLabels[period]+' es '+rank:'Consultar mi posición '+periodLabels[period]} title={'Mi posición '+periodLabels[period]} onClick={()=>setOpen(v=>!v)} style={{position:'fixed',right:17,bottom:295,zIndex:1002,width:70,height:70,borderRadius:'50%',border:'4px solid #b9e1a6',background:'#17482f',color:'#fff',boxShadow:'0 6px 20px #0004',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:0}}>
+  <button className="flc-float-position" type="button" aria-label={rank?'Tu posición de '+periodLabels[period]+' es '+rank:'Consultar mi posición '+periodLabels[period]} title={'Mi posición '+periodLabels[period]} onClick={()=>setOpen(v=>!v)} style={{position:'fixed',right:17,bottom:295,zIndex:1002,width:70,height:70,borderRadius:'50%',border:'4px solid #b9e1a6',background:'#17482f',color:'#fff',boxShadow:'0 6px 20px #0004',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:0}}>
    <span style={{fontSize:22,lineHeight:1.1}}>🏆</span><span style={{fontSize:15,fontWeight:800,lineHeight:1.2}}>{rank?'#'+rank:'—'}</span><span style={{fontSize:9,fontWeight:700,lineHeight:1.1,textTransform:'uppercase'}}>{period==='day'?'DÍA':period==='week'?'SEM':period==='month'?'MES':'AÑO'}</span>
   </button>
  </React.Fragment>;

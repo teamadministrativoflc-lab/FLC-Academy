@@ -90,7 +90,7 @@ function RankCelebrations({user}) {
    </div>
    <p style={{padding:'8px 13px',margin:0,fontSize:11,color:'#685a33'}}>Solo ascensos confirmados por producción verificada. Compartir a WhatsApp requiere elegir el grupo y enviar.</p>
   </aside>}
-  <button type="button" onClick={toggle} aria-label="Abrir celebraciones de rango" style={{position:'fixed',right:22,bottom:91,zIndex:1000,borderRadius:'50%',height:58,width:58,border:'3px solid #e8ca67',background:'#7b5916',color:'#fff',fontSize:25,boxShadow:'0 5px 20px #0004'}}>🏆{unread>0&&!open&&<span style={{position:'absolute',right:-5,top:-7,borderRadius:20,background:'#db4747',fontSize:12,padding:'2px 6px'}}>{unread}</span>}</button>
+  <button className="flc-float-ranks" type="button" onClick={toggle} aria-label="Abrir celebraciones de rango" style={{position:'fixed',right:22,bottom:91,zIndex:1000,borderRadius:'50%',height:58,width:58,border:'3px solid #e8ca67',background:'#7b5916',color:'#fff',fontSize:25,boxShadow:'0 5px 20px #0004'}}>🏆{unread>0&&!open&&<span style={{position:'absolute',right:-5,top:-7,borderRadius:20,background:'#db4747',fontSize:12,padding:'2px 6px'}}>{unread}</span>}</button>
  </React.Fragment>;
 }
 window.RankCelebrations=RankCelebrations;
