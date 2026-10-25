@@ -131,7 +131,23 @@ function ChallengeCenter({user,setPage,isLeader}) {
   await loadHall();
  };
  const finalIds=new Set(hall.map(x=>x.challenge_id));
- const demoHall=hallDemo?[{challenge_id:'ejemplo',challenge_title:'Reto de ejemplo (NO PUBLICADO)',starts_on:today,ends_on:today,participant_scope:'individual',metric:'verified_ap',place:1,participant_name:'Agente de ejemplo',metric_value:10000,target_value:10000,finalized_at:new Date().toISOString(),isDemo:true},...hall]:hall;
+ const demoEntries=hallDemo?[
+  {challenge_id:'ejemplo',challenge_title:'Reto de ejemplo',starts_on:today,ends_on:today,participant_scope:'individual',metric:'verified_ap',place:1,participant_name:'Agente de ejemplo A',metric_value:12500,target_value:10000,isDemo:true},
+  {challenge_id:'ejemplo',challenge_title:'Reto de ejemplo',starts_on:today,ends_on:today,participant_scope:'individual',metric:'verified_ap',place:2,participant_name:'Agente de ejemplo B',metric_value:11200,target_value:10000,isDemo:true},
+  {challenge_id:'ejemplo',challenge_title:'Reto de ejemplo',starts_on:today,ends_on:today,participant_scope:'individual',metric:'verified_ap',place:3,participant_name:'Agente de ejemplo C',metric_value:10400,target_value:10000,isDemo:true},
+  ...hall
+ ]:hall;
+ const hallGroups=Object.values(demoEntries.reduce((acc,item)=>{
+  const key=item.challenge_id;
+  if(!acc[key])acc[key]={challenge_id:key,title:item.challenge_title,ends_on:item.ends_on,metric:item.metric,isDemo:!!item.isDemo,winners:[]};
+  acc[key].winners.push(item);
+  return acc;
+ },{}));
+ const podiumColors={
+  1:{accent:'#d4a43c',background:'linear-gradient(155deg,#fff8dc,#ffffff 72%)',medal:'🥇',label:'CAMPEÓN',order:2,height:245},
+  2:{accent:'#a6b0bd',background:'linear-gradient(155deg,#f0f4f7,#ffffff 72%)',medal:'🥈',label:'SEGUNDO LUGAR',order:1,height:205},
+  3:{accent:'#b97d4c',background:'linear-gradient(155deg,#fff1e5,#ffffff 72%)',medal:'🥉',label:'TERCER LUGAR',order:3,height:185}
+ };
  const summaryStyle={fontSize:13,color:'#667666'};
  return <section data-screen-label="FLC Gamification Center Retos" style={{maxWidth:1200}}>
   <button type="button" onClick={()=>setPage('dashboard')} style={{color:'#38602a',marginBottom:12}}>← Volver al inicio</button>
@@ -220,22 +236,46 @@ function ChallengeCenter({user,setPage,isLeader}) {
    {rewards.length>0&&<p style={{fontSize:13,color:'#496a32',marginTop:12}}>🏅 {rewards.length} recompensa{rewards.length===1?'':'s'} de meta registrada{rewards.length===1?'':'s'} en este reto.</p>}
    <p style={{...summaryStyle,marginTop:18}}>Solo se muestran métricas de producción; no se exponen datos de clientes ni pólizas individuales.</p>
   </section>}
-  <section className="card" style={{marginTop:24,padding:20}} aria-label="Salón de Campeones FLC">
-   <h2 style={{marginTop:0,color:'#214a2b'}}>👑 Salón de Campeones</h2>
-   <p style={summaryStyle}>Podios definitivos de retos terminados y cerrados por administración o el líder responsable. Los resultados históricos no se recalculan.</p>
-   {isAdmin&&<button type="button" onClick={()=>setHallDemo(v=>!v)} style={{padding:'8px 12px',background:'#fff3d0',borderRadius:7,marginBottom:14}}>{hallDemo?'Ocultar ejemplo':'Ver ejemplo sin publicar'}</button>}
-   {hallError&&<p role="status" style={{fontSize:13,color:'#926224'}}>{hallError}</p>}
-   {!demoHall.length&&!hallError&&<p>Aún no hay podios finalizados. Los retos deben terminar antes de guardar sus campeones.</p>}
-   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:12}}>
-    {demoHall.map(h=><article key={h.challenge_id+'-'+h.place} style={{border:'1px solid #dec98a',borderRadius:10,padding:14,background:'#fffdf3'}}>
-     {h.isDemo&&<strong style={{fontSize:12,color:'#a35a14'}}>EJEMPLO · NO PUBLICADO</strong>}
-     <div style={{fontSize:22}}>{h.place===1?'🥇':h.place===2?'🥈':'🥉'}</div>
-     <strong style={{fontSize:16,color:'#214c31'}}>{h.participant_name}</strong>
-     <div style={{fontSize:13,color:'#5b6d54',marginTop:4}}>{h.challenge_title}</div>
-     <div style={{fontSize:13,fontWeight:700,marginTop:8}}>{fmt(h.metric_value,h.metric)}</div>
-     <div style={{fontSize:12,color:'#6a7767'}}>Finalizó: {h.ends_on}</div>
-    </article>)}
+  <section className="card" style={{marginTop:24,padding:24,background:'linear-gradient(140deg,#f7faf3,#fffdf7)',border:'1px solid #d9e5d2'}} aria-label="Salón de Campeones FLC">
+   <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap',justifyContent:'space-between'}}>
+    <div>
+     <div style={{fontSize:11,fontWeight:800,letterSpacing:2,color:'#9f7a24'}}>FUTURE LEGACY CREATORS · GAMIFICATION CENTER</div>
+     <h2 style={{margin:'7px 0',color:'#153e2b',fontSize:'clamp(25px,4vw,37px)'}}>👑 Salón de Campeones</h2>
+     <p style={{...summaryStyle,margin:'5px 0 13px'}}>El legado de quienes conquistaron sus retos. Podios oficiales cerrados; resultados históricos permanentes.</p>
+    </div>
+    {isAdmin&&<button type="button" onClick={()=>setHallDemo(v=>!v)} aria-pressed={hallDemo} style={{padding:'10px 15px',background:hallDemo?'#f3dfac':'#fff5db',border:'1px solid #d7bf7e',borderRadius:10,color:'#604d1b',fontWeight:700}}>{hallDemo?'Ocultar ejemplo':'Ver ejemplo sin publicar'}</button>}
    </div>
+   {hallError&&<p role="status" style={{fontSize:13,color:'#926224'}}>{hallError}</p>}
+   {!hallGroups.length&&!hallError&&<div style={{padding:'24px 18px',border:'1px dashed #bacfba',borderRadius:14,textAlign:'center',background:'#fff'}}>
+    <div style={{fontSize:36}}>🏆</div>
+    <strong style={{color:'#235037'}}>El próximo campeón aún está por escribirse</strong>
+    <p style={{...summaryStyle,marginBottom:0}}>Los podios aparecerán aquí al finalizar y cerrar oficialmente los retos.</p>
+   </div>}
+   {hallGroups.map(group=><div key={group.challenge_id} style={{marginTop:18,padding:'22px 16px',borderRadius:18,background:group.isDemo?'#fffdf4':'#fff',border:group.isDemo?'2px dashed #c99a35':'1px solid #dce7d8',boxShadow:'0 10px 26px rgba(19,58,33,.06)'}}>
+    {group.isDemo&&<div style={{display:'inline-block',padding:'6px 12px',borderRadius:30,background:'#fff0c5',color:'#8a5312',fontSize:12,fontWeight:900,letterSpacing:1,marginBottom:12}}>VISTA DE EJEMPLO · NO PUBLICADA · DATOS FICTICIOS</div>}
+    <div style={{textAlign:'center',marginBottom:20}}>
+     <div style={{fontSize:12,letterSpacing:2,fontWeight:800,color:'#ac8429'}}>PODIO {group.isDemo?'DEMOSTRATIVO':'OFICIAL'}</div>
+     <h3 style={{fontSize:'clamp(19px,3vw,27px)',margin:'7px 0',color:'#163d29'}}>{group.title}</h3>
+     <div style={{fontSize:13,color:'#73816e'}}>{metrics[group.metric]||'Producción'} · Finalizó {group.ends_on}</div>
+    </div>
+    <div style={{display:'flex',flexWrap:'wrap',gap:14,alignItems:'end',justifyContent:'center'}}>
+     {group.winners.slice().sort((a,b)=>a.place-b.place).map(w=>{
+      const medal=podiumColors[w.place]||podiumColors[3];
+      return <article key={w.place} style={{order:medal.order,flex:'1 1 185px',maxWidth:330,minWidth:0,minHeight:medal.height,padding:'22px 16px 16px',textAlign:'center',border:'2px solid '+medal.accent,borderRadius:16,background:medal.background,boxShadow:w.place===1?'0 14px 28px rgba(155,114,30,.15)':'0 7px 16px rgba(24,53,33,.06)',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
+       <div>
+        <div style={{fontSize:w.place===1?54:44,lineHeight:1.2}} aria-hidden="true">{medal.medal}</div>
+        <div style={{fontSize:11,letterSpacing:1.4,fontWeight:900,color:'#8c6622',marginTop:7}}>{medal.label}</div>
+        <strong style={{display:'block',fontSize:w.place===1?21:18,color:'#153f2b',margin:'9px 0',overflowWrap:'anywhere'}}>{w.participant_name}</strong>
+       </div>
+       <div>
+        <div style={{fontSize:w.place===1?23:20,fontWeight:900,color:'#163d29'}}>{fmt(w.metric_value,group.metric)}</div>
+        <div style={{fontSize:12,color:'#657363',marginTop:5}}>{w.place}º lugar · Meta {fmt(w.target_value,group.metric)}</div>
+       </div>
+      </article>;
+     })}
+    </div>
+    <p style={{fontSize:12,textAlign:'center',color:'#687665',margin:'18px 0 0'}}>{group.isDemo?'Este ejemplo solo se muestra en tu pantalla. No crea resultados ni premios.':'Reconocimiento histórico definitivo; no cambia con futuras correcciones de producción.'}</p>
+   </div>)}
   </section>
  </section>;
 }
