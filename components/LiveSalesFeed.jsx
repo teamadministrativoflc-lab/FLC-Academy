@@ -10,7 +10,7 @@ function LiveSalesFeed({user}) {
  React.useEffect(()=>{openRef.current=open;if(open)setUnread(0);},[open]);
  const load=React.useCallback(async()=>{
   const {data,error}=await window.flcSupabase.from('flc_sale_announcements')
-   .select('policy_id,principal_name,carrier,product_type,total_ap,status,participants,announced_at')
+   .select('policy_id,principal_name,client_name,possible_duplicate,first_reporter_name,first_reported_at,carrier,product_type,total_ap,status,participants,announced_at')
    .order('announced_at',{ascending:false}).limit(30);
   if(error){setError('No se pudo cargar Ventas en Vivo. Revisa SQL 021.');return;}
   setError('');const incoming=data||[];
@@ -45,11 +45,13 @@ function LiveSalesFeed({user}) {
   const ps=people(r);
   return ['🎉 ¡NUEVA VENTA!','',
    '👤 Agente principal: '+r.principal_name,
+   '🤝 Cliente: '+r.client_name,
    ...(ps.length>1?['🤝 Venta en equipo (split):',...ps.map(p=>'• '+p.name+' — '+Number(p.percent)+'% ('+money(p.credited_ap)+')')]:[]),
    '🏢 Compañía: '+r.carrier,
    '📄 Producto: '+r.product_type,
    '💰 AP total: '+money(r.total_ap),
-   '📋 Estado: Sometida','',
+   '📋 Estado: Sometida',
+   ...(r.possible_duplicate?['⚠️ POSIBLE DUPLICADO: primer reporte de '+r.first_reporter_name+' ('+new Date(r.first_reported_at).toLocaleString('es-US',{timeZone:'America/New_York'})+'). Revisar con Administración.']:[]),'',
    '💪🔥 ¡Felicidades '+(ps.length>1?ps.map(p=>p.name.split(' ')[0]).join(' y '):r.principal_name.split(' ')[0])+'! ¡Seguimos construyendo legados!'].join('\n');
  };
  const copy=async r=>{try{await navigator.clipboard.writeText(message(r));setError('✓ Mensaje copiado para compartir.');}catch(e){setError('No se pudo copiar. Usa Compartir por WhatsApp.');}};
@@ -66,18 +68,20 @@ function LiveSalesFeed({user}) {
      <strong style={{fontSize:17}}>🎉 ¡NUEVA VENTA!</strong>
      <div style={{marginTop:9,fontSize:13,lineHeight:1.7}}>
       <div>👤 Principal: <b>{r.principal_name}</b></div>
+      <div>🤝 Cliente: <b>{r.client_name}</b></div>
       {people(r).length>1&&<div><b>🤝 Split:</b>{people(r).map((p,i)=><div key={i} style={{paddingLeft:16}}>{p.name} · {Number(p.percent)}% · {money(p.credited_ap)}</div>)}</div>}
       <div>🏢 Compañía: <b>{r.carrier}</b></div>
       <div>📄 Producto: <b>{r.product_type}</b></div>
       <div>💰 AP total: <b>{money(r.total_ap)}</b></div>
       <div>📋 Estado al reportar: <b>Sometida</b></div>
+      {r.possible_duplicate&&<div style={{border:'1px solid #e1a15b',borderRadius:8,padding:8,background:'#fff5e7',color:'#90491b',lineHeight:1.5,marginTop:8}}>⚠️ <b>Posible cliente duplicado.</b> Primer reporte: {r.first_reporter_name} · {r.first_reported_at&&new Date(r.first_reported_at).toLocaleString('es-US',{timeZone:'America/New_York'})}. Verificar con Administración antes de determinar a quién corresponde la venta.</div>}
      </div>
      <p style={{fontWeight:700,margin:'10px 0'}}>💪🔥 ¡Felicidades por esta venta!</p>
      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button type="button" onClick={()=>copy(r)} style={{background:'#fff',border:'1px solid #a6cbb0',borderRadius:7,padding:'7px 9px',fontSize:12}}>📋 Copiar mensaje</button><button type="button" onClick={()=>whatsApp(r)} style={{background:'#1b834c',color:'#fff',borderRadius:7,padding:'7px 9px',fontSize:12}}>📲 Compartir por WhatsApp</button></div>
      <div style={{fontSize:11,color:'#64806e',textAlign:'right',marginTop:8}}>{new Date(r.announced_at).toLocaleString('es-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</div>
     </article>)}
    </div>
-   <div style={{padding:'9px 14px',fontSize:11,color:'#657869',borderTop:'1px solid #dae6dc'}}>Solo lectura · El usuario elige el grupo y confirma el envío en WhatsApp. Sin datos de clientes.</div>
+   <div style={{padding:'9px 14px',fontSize:11,color:'#657869',borderTop:'1px solid #dae6dc'}}>Solo lectura · El usuario selecciona el grupo y confirma el envío. Incluye nombre del cliente: comparte solo en el grupo autorizado.</div>
   </aside>}
   <button type="button" aria-label="Abrir FLC Ventas en Vivo" onClick={()=>setOpen(x=>!x)} style={{position:'fixed',right:22,bottom:22,zIndex:1000,background:'#184c30',color:'white',borderRadius:'50%',width:58,height:58,fontSize:25,boxShadow:'0 6px 22px #0004',border:'3px solid #a5d670'}}>💬{unread>0&&!open&&<span style={{position:'absolute',right:-5,top:-7,borderRadius:20,background:'#db4747',color:'white',fontSize:12,padding:'2px 6px'}}>{unread}</span>}</button>
  </React.Fragment>;
