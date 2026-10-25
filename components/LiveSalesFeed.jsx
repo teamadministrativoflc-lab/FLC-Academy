@@ -58,7 +58,23 @@ function LiveSalesFeed({user}) {
    '*¡Felicidades, '+firstNames+'!*',
    '¡Seguimos construyendo legados!'].join('\n');
  };
- const copy=async r=>{try{await navigator.clipboard.writeText(message(r));setError('✓ Mensaje copiado para compartir.');}catch(e){setError('No se pudo copiar. Usa Compartir por WhatsApp.');}};
+ const emojiMessage=r=>{
+  const ps=people(r);
+  const names=ps.length>1?ps.map(p=>p.name.split(' ')[0]).join(' y '):r.principal_name.split(' ')[0];
+  // Clipboard preserves full Unicode; WhatsApp's URL redirects do not on all devices.
+  return ['🎉 *¡NUEVA VENTA - FUTURE LEGACY CREATORS!*','',
+   '👤 *Agente principal:* '+r.principal_name,
+   '🤝 *Cliente:* '+r.client_name,
+   ...(ps.length>1?['🤝 *Venta en equipo (split):*',...ps.map(p=>'• '+p.name+' — '+Number(p.percent)+'% ('+money(p.credited_ap)+')')]:[]),
+   '🏢 *Compañía:* '+r.carrier,
+   '📄 *Producto:* '+r.product_type,
+   '💰 *AP total:* '+money(r.total_ap),
+   '📋 *Estado:* '+(r.status||'Sometida'),
+   '',
+   '💪🔥 *¡Felicidades, '+names+'!*',
+   '¡Seguimos construyendo legados!'].join('\n');
+ };
+ const copy=async r=>{try{await navigator.clipboard.writeText(emojiMessage(r));setError('✓ Mensaje CON emojis copiado. Pégalo en el grupo de WhatsApp.');}catch(e){setError('No se pudo copiar. Revisa los permisos del portapapeles o usa Compartir por WhatsApp.');}};
  const whatsApp=r=>window.open('https://wa.me/?text='+encodeURIComponent(message(r)),'_blank','noopener,noreferrer');
  const frame={position:'fixed',right:20,bottom:84,zIndex:1000,width:'min(390px,calc(100vw - 32px))',height:'min(570px,calc(100vh - 130px))',background:'#fff',border:'1px solid #d6e3d4',borderRadius:16,boxShadow:'0 16px 48px rgba(0,0,0,.2)',display:'flex',flexDirection:'column',overflow:'hidden'};
  return <React.Fragment>
@@ -80,7 +96,7 @@ function LiveSalesFeed({user}) {
       <div>📋 Estado al reportar: <b>{r.status||'Sometida'}</b></div>
      </div>
      <p style={{fontWeight:700,margin:'10px 0'}}>💪🔥 ¡Felicidades por esta venta!</p>
-     <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button type="button" onClick={()=>copy(r)} style={{background:'#fff',border:'1px solid #a6cbb0',borderRadius:7,padding:'7px 9px',fontSize:12}}>📋 Copiar mensaje</button><button type="button" onClick={()=>whatsApp(r)} style={{background:'#1b834c',color:'#fff',borderRadius:7,padding:'7px 9px',fontSize:12}}>📲 Compartir por WhatsApp</button></div>
+     <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button type="button" onClick={()=>copy(r)} style={{background:'#fff',border:'1px solid #a6cbb0',borderRadius:7,padding:'7px 9px',fontSize:12}}>📋 Copiar con emojis</button><button type="button" onClick={()=>whatsApp(r)} style={{background:'#1b834c',color:'#fff',borderRadius:7,padding:'7px 9px',fontSize:12}}>📲 Compartir por WhatsApp</button></div>
      <div style={{fontSize:11,color:'#64806e',textAlign:'right',marginTop:8}}>{new Date(r.announced_at).toLocaleString('es-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</div>
     </article>)}
    </div>
