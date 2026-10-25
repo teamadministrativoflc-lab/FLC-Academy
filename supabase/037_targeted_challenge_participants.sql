@@ -4,13 +4,13 @@
 ALTER TABLE public.flc_production_challenges
  ADD COLUMN IF NOT EXISTS audience_mode text NOT NULL DEFAULT 'all'
  CHECK(audience_mode IN ('all','selected'));
-DO $ BEGIN
+DO $$ BEGIN
  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='flc_challenge_selected_only_individual') THEN
   ALTER TABLE public.flc_production_challenges
    ADD CONSTRAINT flc_challenge_selected_only_individual
    CHECK(audience_mode <> 'selected' OR participant_scope='individual');
  END IF;
-END $;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.flc_challenge_selected_agents (
  challenge_id uuid NOT NULL REFERENCES public.flc_production_challenges(id),
