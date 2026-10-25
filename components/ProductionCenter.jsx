@@ -7,6 +7,10 @@ function ProductionCenter({user,setPage}) {
  const [savedUplineGoal,setSavedUplineGoal]=React.useState(null);
  const [goalBusy,setGoalBusy]=React.useState(false);
  const [goalError,setGoalError]=React.useState('');
+ const [agencyStandings,setAgencyStandings]=React.useState([]);
+ const [agencyStandingsError,setAgencyStandingsError]=React.useState('');
+ const [positionMode,setPositionMode]=React.useState('policy_count');
+ const [agencyStandingsLoading,setAgencyStandingsLoading]=React.useState(true);
  const [periodType,setPeriodType]=React.useState('month');
  const [periodDate,setPeriodDate]=React.useState(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()));
  const anchor=new Date(periodDate+'T12:00:00Z');
@@ -57,6 +61,13 @@ function ProductionCenter({user,setPage}) {
    if(error){setError('No se pudo cargar la producción completa. Reintenta.');break;}
    all=all.concat(data||[]);if(!data||data.length<1000)break;
   }setRows(all);setBusy(false);};
+ React.useEffect(()=>{let active=true;setAgencyStandingsLoading(true);setAgencyStandingsError('');
+  window.flcSupabase.rpc('flc_agency_submitted_standings',{p_start:rangeStart,p_end:rangeEnd}).then(({data,error})=>{
+   if(!active)return;setAgencyStandingsLoading(false);
+   if(error){setAgencyStandings([]);setAgencyStandingsError('Falta activar SQL 035 para mostrar las posiciones de la agencia.');}
+   else{setAgencyStandings(data||[]);setAgencyStandingsError('');}
+  });return()=>{active=false;};
+ },[rangeStart,rangeEnd,user.id]);
  const loadLeads=async()=>{let all=[];for(let offset=0;offset<20000;offset+=1000){
   const {data,error}=await window.flcSupabase.from('flc_lead_investments').select('id,agent_id,spent_on,provider,amount,lead_count,created_at').order('spent_on',{ascending:false}).range(offset,offset+999);
   if(error){setLeadError('Para inversión en leads falta ejecutar SQL 020 o no hay permiso.');setLeadInvestments([]);return;}
@@ -291,6 +302,11 @@ function ProductionCenter({user,setPage}) {
   if(!w){setError('El navegador bloqueó la ventana del reporte. Permite ventanas emergentes para FLC Academy.');return;}
   w.document.open();w.document.write(html);w.document.close();w.focus();
  };
+ const standingsOrdered=[...agencyStandings].sort((a,b)=>positionMode==='submitted_ap'?Number(a.rank_ap)-Number(b.rank_ap):Number(a.rank_policies)-Number(b.rank_policies));
+ const myStanding=agencyStandings.find(a=>a.agent_id===user.id);
+ const myPosition=myStanding?Number(positionMode==='submitted_ap'?myStanding.rank_ap:myStanding.rank_policies):null;
+ const podiumStandings=standingsOrdered.slice(0,3);
+ const positionAmount=a=>positionMode==='submitted_ap'?fmt(a.submitted_ap):Number(a.submitted_policies).toLocaleString('en-US')+' póliza'+(Number(a.submitted_policies)===1?'':'s');
  const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
  const inp={padding:10,border:'1px solid #ccd8cd',borderRadius:7,width:'100%',fontSize:14,background:'#fff'};
@@ -399,6 +415,43 @@ function ProductionCenter({user,setPage}) {
   <button type="button" onClick={printUplineReport} disabled={!agencyTotals||!!periodTeamError||!savedUplineGoal} style={{padding:'11px 18px',border:0,borderRadius:8,background:'#126b3b',color:'#fff',fontWeight:700,cursor:'pointer'}}>Vista previa / Guardar PDF</button>
   <p style={{fontSize:12,color:'#657665'}}>Meta guardada: {savedUplineGoal?fmt(savedUplineGoal):'Sin configurar para este período'}. No se comparte automáticamente.</p>
  </section>}
+ <section style={{margin:'18px 0 24px',padding:18,background:'linear-gradient(135deg,#16201a,#283f2a)',color:'#fff',borderRadius:14}}>
+  <h3 style={{margin:'0 0 6px'}}>🏆 Mi posición en la agencia · {rangeLabel}</h3>
+  <p style={{fontSize:13,color:'#d6e9d7'}}>Todos los agentes pueden consultar su lugar en Future Legacy Creators. El ranking utiliza únicamente pólizas sometidas reales; si hay split, cada participante cuenta una póliza y la AP se divide según su porcentaje.</p>
+  <label style={{display:'flex',flexDirection:'column',gap:5,maxWidth:350,margin:'12px 0',fontSize:13}}>Clasificar por
+   <select value={positionMode} onChange={e=>setPositionMode(e.target.value)} style={{padding:10,borderRadius:8,background:'#fff',color:'#18251c'}}>
+    <option value="policy_count">Cantidad de pólizas sometidas</option>
+    <option value="submitted_ap">AP sometida acreditada</option>
+   </select>
+  </label>
+  {agencyStandingsError?<p role="alert" style={{color:'#ffcbba'}}>{agencyStandingsError}</p>:agencyStandingsLoading?<p>Cargando clasificación…</p>:<React.Fragment>
+   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:12,margin:'16px 0'}}>
+    <div style={{background:'#263b36',padding:15,border:'1px solid #587866',borderRadius:12}}>
+     <small style={{color:'#b0d2bb'}}>TU POSICIÓN EN FLC</small>
+     <div style={{fontSize:36,fontWeight:800,marginTop:7}}>{myPosition?'#'+myPosition:'—'}</div>
+     <strong>{user.name}</strong><div style={{color:'#cef3d5',marginTop:5}}>{myStanding?positionAmount(myStanding):'Sin pólizas sometidas en este período'}</div>
+    </div>
+    <div style={{background:'#263b36',padding:15,border:'1px solid #587866',borderRadius:12}}>
+     <small style={{color:'#b0d2bb'}}>AGENTES CON PRODUCCIÓN</small>
+     <div style={{fontSize:36,fontWeight:800,marginTop:7}}>{agencyStandings.length}</div>
+     <div style={{color:'#cef3d5'}}>Tu posición se compara con los agentes que sometieron negocio en este período.</div>
+    </div>
+   </div>
+   <h4 style={{margin:'20px 0 10px'}}>Podio de la agencia</h4>
+   {podiumStandings.length?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12}}>
+    {podiumStandings.map((a,i)=><div key={a.agent_id} style={{background:i===0?'#fff2c7':'#f0f5ef',color:'#13261a',borderRadius:12,padding:17,textAlign:'center',minHeight:135}}>
+     <div style={{fontSize:30}}>{['🥇','🥈','🥉'][i]}</div><strong style={{display:'block',overflowWrap:'anywhere'}}>{a.full_name}</strong>
+     <div style={{fontSize:23,fontWeight:800,marginTop:7}}>{positionAmount(a)}</div>
+     <small>{i+1}º lugar</small>
+    </div>)}
+   </div>:<p>Sin agentes con producción sometida en el período seleccionado.</p>}
+   {standingsOrdered.length>3&&<details style={{marginTop:17}}><summary style={{cursor:'pointer'}}>Ver clasificación de agentes · Top 10</summary>
+    <div style={{overflowX:'auto',marginTop:10}}><table style={{width:'100%',fontSize:13,borderCollapse:'collapse'}}>
+     <thead><tr><th style={{textAlign:'left',padding:8}}>Lugar</th><th style={{textAlign:'left'}}>Agente</th><th style={{textAlign:'right'}}>Producción</th></tr></thead>
+     <tbody>{standingsOrdered.slice(0,10).map((a,i)=><tr key={a.agent_id}><td style={{padding:8,borderTop:'1px solid #496551'}}>#{i+1}</td><td>{a.full_name}</td><td style={{textAlign:'right'}}>{positionAmount(a)}</td></tr>)}</tbody>
+    </table></div></details>}
+  </React.Fragment>}
+ </section>
  <h3>👤 Producción personal</h3>
  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
  {metric('Mis pólizas sometidas',mySubmitted.length)}
