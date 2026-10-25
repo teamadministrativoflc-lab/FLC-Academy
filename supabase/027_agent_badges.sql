@@ -64,7 +64,7 @@ BEGIN
   JOIN weeks w2 ON w2.wk=w.wk+14
   JOIN weeks w3 ON w3.wk=w.wk+21
  ) INTO v_streak;
- IF v_streak THEN
+ IF v_streak AND NOT EXISTS(SELECT 1 FROM public.flc_agent_badges WHERE agent_id=p_agent_id AND badge_code='four_weeks') THEN
   INSERT INTO public.flc_agent_badges(agent_id,badge_code,period_month,source_policy_id)
   VALUES(p_agent_id,'four_weeks',v_month,p_policy_id)
   ON CONFLICT DO NOTHING;
@@ -147,7 +147,7 @@ CREATE OR REPLACE FUNCTION public.flc_badges_after_rank_ascent()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $$
 BEGIN
- IF NEW.change_type='ascenso' AND public.flc_rank_order(NEW.new_rank)>=1 THEN
+ IF NEW.change_type='ascenso' AND public.flc_rank_order(NEW.new_rank)>=1 AND NOT EXISTS(SELECT 1 FROM public.flc_agent_badges WHERE agent_id=NEW.agent_id AND badge_code='team_leader') THEN
   INSERT INTO public.flc_agent_badges(agent_id,badge_code,period_month)
   VALUES(NEW.agent_id,'team_leader',NEW.evaluation_month) ON CONFLICT DO NOTHING;
  END IF;
@@ -185,7 +185,8 @@ BEGIN
   PERFORM public.flc_badges_evaluate_agent(p_agent_id,v_month);
  END LOOP;
  IF EXISTS(SELECT 1 FROM public.flc_rank_profiles
-   WHERE agent_id=p_agent_id AND current_rank IS NOT NULL) THEN
+   WHERE agent_id=p_agent_id AND current_rank IS NOT NULL)
+  AND NOT EXISTS(SELECT 1 FROM public.flc_agent_badges WHERE agent_id=p_agent_id AND badge_code='team_leader') THEN
   INSERT INTO public.flc_agent_badges(agent_id,badge_code,period_month)
   SELECT p_agent_id,'team_leader',date_trunc('month',COALESCE(assigned_at,now()))::date
   FROM public.flc_rank_profiles WHERE agent_id=p_agent_id ON CONFLICT DO NOTHING;
