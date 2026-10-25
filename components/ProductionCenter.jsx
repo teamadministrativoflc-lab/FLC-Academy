@@ -403,7 +403,7 @@ function ProductionCenter({user,setPage}) {
    return name+': '+Number(s.pct).toLocaleString('en-US')+'% ('+fmt(Number(r.annual_premium)*Number(s.pct)/100)+')';
   }).join(' / ');
  };
- return <div style={{padding:28,maxWidth:1250,margin:'auto'}}>
+ return <div className="production-center" style={{padding:28,maxWidth:1250,margin:'auto'}}>
  <button onClick={()=>setPage('dashboard')}>← Inicio</button><h1>FLC Production Center</h1>
  <p>Elige una categoría para consultar producción, rankings, pólizas o inversión en leads.</p>
  <nav aria-label="Secciones del Production Center" style={{display:'flex',flexWrap:'wrap',gap:9,margin:'16px 0 22px',padding:12,background:'#f1f6f0',border:'1px solid #cfdfcf',borderRadius:12}}>
