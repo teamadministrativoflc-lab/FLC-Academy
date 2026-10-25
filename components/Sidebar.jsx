@@ -1,4 +1,4 @@
-function Sidebar({ page, setPage, user, onLogout, t, lang, isLeader, mobileOpen, onClose }) {
+function Sidebar({ page, setPage, user, rankLabel, onLogout, t, lang, isLeader, mobileOpen, onClose }) {
   // Order requested by user: inicio, tutoriales, mi progreso, recursos, compañías, el matcher
   const items = [
     { id: 'dashboard', icon: 'home',     label: t('nav_dashboard') },
@@ -51,7 +51,7 @@ function Sidebar({ page, setPage, user, onLogout, t, lang, isLeader, mobileOpen,
             <div className="sb-user-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user.name}
             </div>
-            <div className="sb-user-role">{t('role_agent')}</div>
+            <div className="sb-user-role">{user.role==='admin'?'Administración':rankLabel||'Cargando título…'}</div>
           </div>
           <span className="sb-icon" style={{ opacity: .5 }}><I name="logout" size={16} /></span>
         </div>
