@@ -91,6 +91,7 @@ function App() {
     badges: <BadgeGallery user={user} setPage={setPage} />,
     challenges: <ChallengeCenter user={user} setPage={setPage} isLeader={isLeader} />,
     admin: user.role === 'admin' ? <AdminTracking setPage={setPage} /> : null,
+    ceo: user.role === 'admin' ? <CeoDashboard user={user} setPage={setPage} /> : null,
     team: isLeader ? <TeamPanel setPage={setPage} user={user} /> : null,
     dashboard: <Dashboard user={user} setPage={setPage} progress={progress} t={t} lang={lang} />,
     matcher: <Matcher t={t} lang={lang} setPage={setPage} setSelectedCompany={setSelectedCompany} />,
@@ -117,6 +118,7 @@ function App() {
         <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('badges')} style={{padding:'9px 16px',border:'1px solid #cfb05a',borderRadius:7,background:'#fff7de',cursor:'pointer'}}>🏅 Mis insignias</button></div>
         <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('production')} style={{padding:'9px 16px',border:'1px solid #8da588',borderRadius:7,background:'#eef4ea',cursor:'pointer'}}>📋 Mis ventas / Nueva póliza</button></div>
         {isLeader && user.role !== 'admin' && <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('team')} style={{padding:'9px 16px',border:'1px solid #8da588',borderRadius:7,background:'#eef4ea',cursor:'pointer'}}>👥 Mi equipo</button></div>}
+        {user.role === "admin" && <div style={{padding:"4px 28px"}}><button onClick={()=>setPage("ceo")} style={{padding:"9px 16px",border:"1px solid #91b99b",borderRadius:7,background:"#e7f6ea",cursor:"pointer",fontWeight:700}}>📊 Panel de Dirección FLC</button></div>}
         {user.role === "admin" && <div style={{padding:"4px 28px"}}><button onClick={() => setPage("admin")} style={{padding:"9px 16px",border:"1px solid #8da588",borderRadius:7,background:"#eef4ea",cursor:"pointer"}}>📊 Seguimiento de agentes</button></div>}
         {user.role === "admin" && <div style={{padding:"4px 28px"}}><button onClick={()=>setPage("ranks")} style={{padding:"9px 16px",border:"1px solid #8da588",borderRadius:7,background:"#eef4ea",cursor:"pointer"}}>🏆 Administración de Rangos</button></div>}
         {pages[page] || pages.dashboard}
