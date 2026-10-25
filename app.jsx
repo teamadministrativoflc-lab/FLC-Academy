@@ -89,6 +89,7 @@ function App() {
     production: <ProductionCenter user={user} setPage={setPage} />,
     ranks: user.role === 'admin' ? <RankCenter setPage={setPage} /> : null,
     badges: <BadgeGallery user={user} setPage={setPage} />,
+    challenges: <ChallengeCenter user={user} setPage={setPage} isLeader={isLeader} />,
     admin: user.role === 'admin' ? <AdminTracking setPage={setPage} /> : null,
     team: isLeader ? <TeamPanel setPage={setPage} user={user} /> : null,
     dashboard: <Dashboard user={user} setPage={setPage} progress={progress} t={t} lang={lang} />,
@@ -112,6 +113,7 @@ function App() {
             </div>
           </div>
         </div>
+        <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('challenges')} style={{padding:'9px 16px',border:'1px solid #a3c592',borderRadius:7,background:'#edf7e6',cursor:'pointer'}}>🚀 Retos FLC</button></div>
         <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('badges')} style={{padding:'9px 16px',border:'1px solid #cfb05a',borderRadius:7,background:'#fff7de',cursor:'pointer'}}>🏅 Mis insignias</button></div>
         <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('production')} style={{padding:'9px 16px',border:'1px solid #8da588',borderRadius:7,background:'#eef4ea',cursor:'pointer'}}>📋 Mis ventas / Nueva póliza</button></div>
         {isLeader && user.role !== 'admin' && <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('team')} style={{padding:'9px 16px',border:'1px solid #8da588',borderRadius:7,background:'#eef4ea',cursor:'pointer'}}>👥 Mi equipo</button></div>}
