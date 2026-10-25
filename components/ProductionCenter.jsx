@@ -306,6 +306,10 @@ function ProductionCenter({user,setPage}) {
  const myStanding=agencyStandings.find(a=>a.agent_id===user.id);
  const myPosition=myStanding?Number(positionMode==='submitted_ap'?myStanding.rank_ap:myStanding.rank_policies):null;
  const podiumStandings=standingsOrdered.slice(0,3);
+ const policyLeader=[...agencyStandings].sort((a,b)=>Number(b.submitted_policies)-Number(a.submitted_policies)||Number(a.rank_policies)-Number(b.rank_policies))[0];
+ const apLeader=[...agencyStandings].sort((a,b)=>Number(b.submitted_ap)-Number(a.submitted_ap)||Number(a.rank_ap)-Number(b.rank_ap))[0];
+ const missingPolicies=myStanding&&policyLeader?Math.max(0,Number(policyLeader.submitted_policies)-Number(myStanding.submitted_policies)):null;
+ const missingAp=myStanding&&apLeader?Math.max(0,Math.round((Number(apLeader.submitted_ap)-Number(myStanding.submitted_ap))*100)/100):null;
  const positionAmount=a=>positionMode==='submitted_ap'?fmt(a.submitted_ap):Number(a.submitted_policies).toLocaleString('en-US')+' póliza'+(Number(a.submitted_policies)===1?'':'s');
  const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
@@ -430,6 +434,11 @@ function ProductionCenter({user,setPage}) {
      <small style={{color:'#b0d2bb'}}>TU POSICIÓN EN FLC</small>
      <div style={{fontSize:36,fontWeight:800,marginTop:7}}>{myPosition?'#'+myPosition:'—'}</div>
      <strong>{user.name}</strong><div style={{color:'#cef3d5',marginTop:5}}>{myStanding?positionAmount(myStanding):'Sin pólizas sometidas en este período'}</div>
+     {myStanding&&<div style={{marginTop:12,fontSize:13,lineHeight:1.65,color:'#fff'}}>
+      <div><strong>{missingPolicies===0?'✓ Eres el #1 por cantidad':'A '+missingPolicies+' póliza(s) del agente #1 por cantidad'}</strong></div>
+      <div><strong>{missingAp===0?'✓ Eres el #1 por AP sometida':'A '+fmt(missingAp)+' del agente #1 por AP sometida'}</strong></div>
+      <small style={{color:'#b0d2bb'}}>Se compara la producción individual de todos los agentes, sin importar su título. AP según split.</small>
+     </div>}
     </div>
     <div style={{background:'#263b36',padding:15,border:'1px solid #587866',borderRadius:12}}>
      <small style={{color:'#b0d2bb'}}>AGENTES CON PRODUCCIÓN</small>
@@ -445,11 +454,22 @@ function ProductionCenter({user,setPage}) {
      <small>{i+1}º lugar</small>
     </div>)}
    </div>:<p>Sin agentes con producción sometida en el período seleccionado.</p>}
-   {standingsOrdered.length>3&&<details style={{marginTop:17}}><summary style={{cursor:'pointer'}}>Ver clasificación de agentes · Top 10</summary>
-    <div style={{overflowX:'auto',marginTop:10}}><table style={{width:'100%',fontSize:13,borderCollapse:'collapse'}}>
-     <thead><tr><th style={{textAlign:'left',padding:8}}>Lugar</th><th style={{textAlign:'left'}}>Agente</th><th style={{textAlign:'right'}}>Producción</th></tr></thead>
-     <tbody>{standingsOrdered.slice(0,10).map((a,i)=><tr key={a.agent_id}><td style={{padding:8,borderTop:'1px solid #496551'}}>#{i+1}</td><td>{a.full_name}</td><td style={{textAlign:'right'}}>{positionAmount(a)}</td></tr>)}</tbody>
-    </table></div></details>}
+   {standingsOrdered.length>0&&<div style={{marginTop:20}}>
+    <h4 style={{margin:'0 0 8px'}}>Tabla completa de agentes · {standingsOrdered.length} con producción</h4>
+    <p style={{fontSize:12,color:'#d6e9d7'}}>Producción personal sometida. Todos los agentes con producción aparecen en esta tabla, sin importar su título o equipo. El orden depende de «Clasificar por».</p>
+    <div style={{overflowX:'auto',maxHeight:520,overflowY:'auto',border:'1px solid #496551',borderRadius:9}}>
+     <table style={{width:'100%',fontSize:13,borderCollapse:'collapse',minWidth:700}}>
+      <thead style={{position:'sticky',top:0,background:'#263b36',zIndex:1}}><tr><th style={{textAlign:'left',padding:10}}>Lugar</th><th style={{textAlign:'left'}}>Agente</th><th style={{textAlign:'right'}}>Pólizas sometidas</th><th style={{textAlign:'right'}}>AP personal acreditada</th><th style={{textAlign:'right'}}>Faltan para igualar #1 por AP</th></tr></thead>
+      <tbody>{standingsOrdered.map((a,i)=><tr key={a.agent_id} style={{background:a.agent_id===user.id?'#365b42':i%2?'#1e3028':'transparent',fontWeight:a.agent_id===user.id?800:400}}>
+       <td style={{padding:10,borderTop:'1px solid #496551'}}>#{positionMode==='submitted_ap'?a.rank_ap:a.rank_policies}</td>
+       <td>{a.full_name}{a.agent_id===user.id?' · Tú':''}</td>
+       <td style={{textAlign:'right'}}>{Number(a.submitted_policies)}</td>
+       <td style={{textAlign:'right'}}>{fmt(a.submitted_ap)}</td>
+       <td style={{textAlign:'right'}}>{fmt(Math.max(0,Math.round((Number(apLeader.submitted_ap)-Number(a.submitted_ap))*100)/100))}</td>
+      </tr>)}</tbody>
+     </table>
+    </div>
+   </div>}
   </React.Fragment>}
  </section>
  <h3>👤 Producción personal</h3>
