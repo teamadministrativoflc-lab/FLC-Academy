@@ -3,6 +3,7 @@ function ProductionCenter({user,setPage}) {
  const carriers=['National Life Group','F&G','Foresters','American Amicable','Transamerica','Mutual of Omaha','Aetna','Americo','Lincoln Heritage','Occidental','Corebridge','Athene','Otro'];
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',partners:[],primaryPct:'100',date:new Date().toISOString().slice(0,10),primary:'',initialDisposition:'Sometida'});
+ const [activeSection,setActiveSection]=React.useState('policies');
  const [uplineGoal,setUplineGoal]=React.useState('');
  const [savedUplineGoal,setSavedUplineGoal]=React.useState(null);
  const [goalBusy,setGoalBusy]=React.useState(false);
@@ -403,9 +404,20 @@ function ProductionCenter({user,setPage}) {
   }).join(' / ');
  };
  return <div style={{padding:28,maxWidth:1250,margin:'auto'}}>
- <button onClick={()=>setPage('dashboard')}>← Inicio</button><h1>FLC Production Center</h1><p>Registra pólizas, consulta su estado y lleva control de splits. El agente principal puede actualizar estados de sus pólizas; Administración puede revisar todas.</p>
+ <button onClick={()=>setPage('dashboard')}>← Inicio</button><h1>FLC Production Center</h1>
+ <p>Elige una categoría para consultar producción, rankings, pólizas o inversión en leads.</p>
+ <nav aria-label="Secciones del Production Center" style={{display:'flex',flexWrap:'wrap',gap:9,margin:'16px 0 22px',padding:12,background:'#f1f6f0',border:'1px solid #cfdfcf',borderRadius:12}}>
+  {[
+   {id:'policies',label:'📋 Mis pólizas / Nueva póliza'},
+   {id:'summary',label:'📊 Resumen personal'},
+   {id:'ranking',label:'🏆 Ranking de agentes'},
+   ...(canViewTeam?[{id:'teams',label:'👥 Equipos y podios'}]:[]),
+   {id:'leads',label:'📈 Inversión en leads'},
+   ...(user.role==='admin'?[{id:'goals',label:'🎯 Metas y reporte upline'}]:[])
+  ].map(item=><button key={item.id} type="button" onClick={()=>setActiveSection(item.id)} aria-current={activeSection===item.id?'page':undefined} style={{padding:'11px 14px',borderRadius:9,fontWeight:700,cursor:'pointer',border:activeSection===item.id?'2px solid #154e30':'1px solid #bfd0bf',color:activeSection===item.id?'white':'#1d432d',background:activeSection===item.id?'#176b3b':'white'}}>{item.label}</button>)}
+ </nav>
  <section style={{padding:18,margin:'14px 0',border:'1px solid #dce5d8',borderRadius:12,background:'#fff'}}>
- <h2 style={{margin:'0 0 14px'}}>Resumen de producción</h2>
+ <h2 style={{margin:'0 0 14px'}}>Período y filtros</h2>
  <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:16}}>
   <label>Período: <select value={periodType} onChange={e=>setPeriodType(e.target.value)} style={{padding:8}}><option value="day">Día</option><option value="week">Semana (lunes a domingo)</option><option value="month">Mes</option><option value="year">Año</option></select></label>
   <button type="button" onClick={()=>movePeriod(-1)}>← Anterior</button>
@@ -416,6 +428,7 @@ function ProductionCenter({user,setPage}) {
  </div>
  {user.role==='admin'&&<label style={{marginLeft:12}}>Estructura: <select value={structureFilter} onChange={e=>setStructureFilter(e.target.value)}><option value="">Toda la agencia</option>{leaderRows.map(l=><option key={l.leader_id} value={l.leader_id}>{l.leader_name}</option>)}</select></label>}
  {structureLoading&&<p>Cargando estructura seleccionada…</p>}{structureError&&<p role="alert" style={{color:'#a33'}}>{structureError}</p>}
+ <div style={{display:activeSection==='summary'?'block':'none'}}>
  {user.role==='admin'&&!structureFilter&&<section style={{margin:'16px 0 22px',padding:18,background:'#eef7ee',border:'1px solid #a6c9aa',borderRadius:12}}>
   <h3 style={{margin:'0 0 6px'}}>📊 Panel ejecutivo · Toda Future Legacy Creators</h3>
   <p style={{fontSize:13,color:'#46604b'}}>Resumen de {rangeLabel}. Los splits se acreditan por porcentaje y cada agente productor cuenta una vez. Inversión en leads declarada, sin validación administrativa.</p>
@@ -435,6 +448,8 @@ function ProductionCenter({user,setPage}) {
    <p style={{fontSize:13}}><strong>Inversión por proveedor:</strong> {[...new Set(scopedLeads.map(l=>l.provider))].sort().map(provider=>provider+' ('+fmt(scopedLeads.filter(l=>l.provider===provider).reduce((n,l)=>n+Number(l.amount),0))+')').join(' · ')||'Sin registros para este período'}</p>
   </React.Fragment>:<p>Cargando totales de agencia…</p>}
  </section>}
+ </div>
+ <div style={{display:activeSection==='goals'?'block':'none'}}>
  {user.role==='admin'&&!structureFilter&&<section style={{margin:'18px 0',padding:18,background:'#fff',border:'1px solid #b7cdb8',borderRadius:12}}>
   <h3 style={{marginTop:0}}>🎯 Metas de AP sometida de la agencia</h3>
   <p style={{fontSize:13,color:'#506a56'}}>Configura aquí la meta del período seleccionado: {rangeLabel}. Las metas de día, semana, mes y año se guardan por separado y no requieren editar código. Solo Administración puede cambiarlas.</p>
@@ -450,6 +465,8 @@ function ProductionCenter({user,setPage}) {
   <button type="button" onClick={printUplineReport} disabled={!agencyTotals||!!periodTeamError||!savedUplineGoal} style={{padding:'11px 18px',border:0,borderRadius:8,background:'#126b3b',color:'#fff',fontWeight:700,cursor:'pointer'}}>Vista previa / Guardar PDF</button>
   <p style={{fontSize:12,color:'#657665'}}>Meta guardada: {savedUplineGoal?fmt(savedUplineGoal):'Sin configurar para este período'}. No se comparte automáticamente.</p>
  </section>}
+ </div>
+ <div style={{display:activeSection==='ranking'?'block':'none'}}>
  <section style={{margin:'18px 0 24px',padding:18,background:'linear-gradient(135deg,#16201a,#283f2a)',color:'#fff',borderRadius:14}}>
   <h3 style={{margin:'0 0 6px'}}>🏆 Mi posición en la agencia · {rangeLabel}</h3>
   <p style={{fontSize:13,color:'#d6e9d7'}}>Todos los agentes pueden consultar su lugar en Future Legacy Creators. El ranking utiliza únicamente pólizas sometidas reales; si hay split, cada participante cuenta una póliza y la AP se divide según su porcentaje.</p>
@@ -503,6 +520,8 @@ function ProductionCenter({user,setPage}) {
    </div>}
   </React.Fragment>}
  </section>
+ </div>
+ <div style={{display:activeSection==='summary'?'block':'none'}}>
  <h3>👤 Producción personal</h3>
  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
  {metric('Mis pólizas sometidas',mySubmitted.length)}
@@ -512,7 +531,9 @@ function ProductionCenter({user,setPage}) {
  {metric('Mi AP Issue Paid verificada',fmt(myVerified))}
  {metric('⭐ Mis Legacy Points',legacyPoints(myVerified).toLocaleString('en-US'))}
  </div>
+ </div>
  {canViewTeam&&<React.Fragment>
+ <div style={{display:activeSection==='teams'?'block':'none'}}>
  <h3 style={{marginTop:22}}>👥 Producción de equipo</h3>
  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
  {metric('Pólizas del equipo (incluye líder)',teamSubmitted.length)}
@@ -594,10 +615,12 @@ function ProductionCenter({user,setPage}) {
  <p style={{fontSize:12,color:'#536454'}}>Las estructuras de un líder y sus sublíderes se superponen. No sumes las filas entre sí. Cada fila incluye al líder y todos sus descendientes.</p>
  {user.role==='admin'&&<div style={{marginTop:12,padding:14,border:'1px solid #9cbd9e',borderRadius:9,background:'#f4f9f4'}}><strong>✓ AP Issue Paid verificada (agencia)</strong><div style={{fontSize:23,fontWeight:700}}>{fmt(agencyTotals?agencyTotals.verified_ap:verifiedAP)}</div><small>Solo pólizas confirmadas por Administración. No se mezclan con Issue Paid reportada.</small></div>}
  {user.role==='admin'&&<p style={{fontSize:13,marginTop:12}}>Agencia · {agencyTotals?agencyTotals.submitted_policies:monthRows.length} pólizas sometidas · {fmt(agencyTotals?agencyTotals.submitted_ap:monthAP)} AP total · {fmt(paidAP)} Issue Paid reportada (sin duplicar splits).</p>}
+ </div>
  </React.Fragment>}
- {canViewTeam&&<p style={{fontSize:12,color:'#536454'}}>Diagnóstico de estructura: {teamIds.length} integrantes asignados; {rows.length} pólizas accesibles; {teamSubmitted.length} pólizas con participación del equipo en este mes.</p>}
- <p style={{fontSize:12,color:'#536454',marginTop:14}}>Datos preliminares de pólizas visibles según permisos. Issue Paid es reportada, no confirmada por aseguradora. Los splits no duplican la AP total visible; la AP de equipo incluye la participación del líder y su estructura autorizada. No sumes personal y equipo.</p>
+ {canViewTeam&&<p style={{display:activeSection==='teams'?'block':'none',fontSize:12,color:'#536454'}}>Diagnóstico de estructura: {teamIds.length} integrantes asignados; {rows.length} pólizas accesibles; {teamSubmitted.length} pólizas con participación del equipo en este mes.</p>}
+ <p style={{display:activeSection==='summary'?'block':'none',fontSize:12,color:'#536454',marginTop:14}}>Datos preliminares de pólizas visibles según permisos. Issue Paid es reportada, no confirmada por aseguradora. Los splits no duplican la AP total visible; la AP de equipo incluye la participación del líder y su estructura autorizada. No sumes personal y equipo.</p>
  </section>
+ <div style={{display:activeSection==='leads'?'block':'none'}}>
  <section style={{margin:'20px 0',background:'#fff',border:'1px solid #b9d2bd',padding:18,borderRadius:12}}>
   <h3>📈 Registrar inversión en leads</h3>
   <p style={{fontSize:13}}>Dato declarado por el agente. Administración no tiene que validarlo. Debes indicar en qué proveedor invertiste; esta inversión no se suma a la AP sometida.</p>
@@ -611,6 +634,8 @@ function ProductionCenter({user,setPage}) {
   </form>
   <p style={{fontSize:12,color:'#5c6b5d'}}>Mis inversiones en el período: {fmt(scopedLeads.filter(l=>l.agent_id===user.id).reduce((n,l)=>n+Number(l.amount),0))} · {scopedLeads.filter(l=>l.agent_id===user.id).length} registros.</p>
  </section>
+ </div>
+ <div style={{display:activeSection==='policies'?'block':'none'}}>
  <div style={{display:'flex',gap:10,margin:'14px 0 22px'}}><button style={inp} onClick={()=>setTab('list')}>Mis ventas / Producción</button><button style={inp} onClick={()=>setTab('new')}>＋ Nueva póliza</button></div>
  {editing&&<section style={{padding:18,background:'#fff',border:'1px solid #bad1be',borderRadius:10,marginBottom:16}}>
   <h2 style={{fontSize:18}}>Actualizar estado de póliza</h2>
@@ -677,6 +702,7 @@ function ProductionCenter({user,setPage}) {
   <h4>Correcciones de AP</h4>
   {apCorrections.filter(x=>x.policy_id===historyPolicy.id).length?apCorrections.filter(x=>x.policy_id===historyPolicy.id).map(x=><p key={x.id}>{new Date(x.created_at).toLocaleString('es-US',{timeZone:'America/New_York'})} · {fmt(x.previous_ap)} → {fmt(x.requested_ap)} · {x.state==='applied'?'Aplicada':x.state==='pending'?'Pendiente':x.state==='approved'?'Aprobada':'Rechazada'} · Motivo: {x.reason}</p>):<p>Sin correcciones de AP registradas.</p>}
   <h4>Cambios de estado</h4><button type="button" onClick={()=>setHistoryPolicy(null)}>Cerrar</button>{historyRows.length?historyRows.map(h=><p key={h.id}>{new Date(h.changed_at).toLocaleString('es-US')} · <strong>{h.changed_by===user.id?user.name:(agents.find(a=>a.id===h.changed_by)?.full_name||'Usuario '+(h.changed_by?h.changed_by.slice(0,8):'no identificado'))}</strong> · {h.previous_status||'—'} → {h.new_status}</p>):<p>Sin cambios registrados desde que se activó el historial.</p>}</section>}
+ </div>
  </div>;
 }
 window.ProductionCenter=ProductionCenter;
