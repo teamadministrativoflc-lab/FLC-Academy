@@ -11,6 +11,7 @@ function ProductionCenter({user,setPage}) {
  const [agencyStandingsError,setAgencyStandingsError]=React.useState('');
  const [positionMode,setPositionMode]=React.useState('policy_count');
  const [agencyStandingsLoading,setAgencyStandingsLoading]=React.useState(true);
+ const [standingsRefresh,setStandingsRefresh]=React.useState(0);
  const [periodType,setPeriodType]=React.useState('month');
  const [periodDate,setPeriodDate]=React.useState(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()));
  const anchor=new Date(periodDate+'T12:00:00Z');
@@ -51,6 +52,9 @@ function ProductionCenter({user,setPage}) {
  const [leaderError,setLeaderError]=React.useState('');
  const [canViewTeam,setCanViewTeam]=React.useState(user.role==='admin');
  const [verificationBusy,setVerificationBusy]=React.useState(false);
+ const [apEditing,setApEditing]=React.useState(null);
+ const [apCorrections,setApCorrections]=React.useState([]);
+ const [apSaving,setApSaving]=React.useState(false);
  const [historyPolicy,setHistoryPolicy]=React.useState(null);
  const [historyRows,setHistoryRows]=React.useState([]);
  const [editing,setEditing]=React.useState(null),[statusSaving,setStatusSaving]=React.useState(false);
@@ -60,14 +64,20 @@ function ProductionCenter({user,setPage}) {
    const {data,error}=await window.flcSupabase.from('flc_policy_sales').select('id,agent_id,client_name,carrier,product_type,policy_number,lead_source,status,annual_premium,split_agent_id,split_primary_pct,submitted_on,approved_on,issue_paid_on,issue_paid_verified_at,issue_paid_verified_by,created_at').order('created_at',{ascending:false}).range(offset,offset+999);
    if(error){setError('No se pudo cargar la producción completa. Reintenta.');break;}
    all=all.concat(data||[]);if(!data||data.length<1000)break;
-  }setRows(all);setBusy(false);};
+  }
+  setRows(all);
+  const corrections=await window.flcSupabase.from('flc_policy_ap_corrections')
+   .select('id,policy_id,requested_by,previous_ap,requested_ap,reason,state,reviewed_by,reviewed_at,created_at')
+   .order('created_at',{ascending:false}).limit(500);
+  if(!corrections.error)setApCorrections(corrections.data||[]);
+  setBusy(false);};
  React.useEffect(()=>{let active=true;setAgencyStandingsLoading(true);setAgencyStandingsError('');
   window.flcSupabase.rpc('flc_agency_submitted_standings',{p_start:rangeStart,p_end:rangeEnd}).then(({data,error})=>{
    if(!active)return;setAgencyStandingsLoading(false);
    if(error){setAgencyStandings([]);setAgencyStandingsError('Falta activar SQL 035 para mostrar las posiciones de la agencia.');}
    else{setAgencyStandings(data||[]);setAgencyStandingsError('');}
   });return()=>{active=false;};
- },[rangeStart,rangeEnd,user.id]);
+ },[rangeStart,rangeEnd,user.id,standingsRefresh]);
  const loadLeads=async()=>{let all=[];for(let offset=0;offset<20000;offset+=1000){
   const {data,error}=await window.flcSupabase.from('flc_lead_investments').select('id,agent_id,spent_on,provider,amount,lead_count,created_at').order('spent_on',{ascending:false}).range(offset,offset+999);
   if(error){setLeadError('Para inversión en leads falta ejecutar SQL 020 o no hay permiso.');setLeadInvestments([]);return;}
@@ -329,6 +339,28 @@ function ProductionCenter({user,setPage}) {
  const primaryAgent=user.role==='admin'?(form.primary||user.id):user.id;
  const statuses=['Sometida','En revisión','Pendiente requisito','Aprobada','Issue Paid','Declinada','Cancelada','Chargeback'];
  const openHistory=async row=>{setHistoryPolicy(row);const {data,error}=await window.flcSupabase.from('flc_policy_status_history').select('id,changed_at,changed_by,previous_status,new_status,previous_approved_on,new_approved_on,previous_issue_paid_on,new_issue_paid_on').eq('policy_id',row.id).order('changed_at',{ascending:false});setHistoryRows(error?[]:data||[]);};
+ const editAP=row=>{setApEditing({id:row.id,client_name:row.client_name,oldAp:row.annual_premium,newAp:String(row.annual_premium),reason:'',verified:!!row.issue_paid_verified_at});setError('');setNotice('');};
+ const saveAP=async()=>{if(!apEditing||apSaving)return;
+  const amount=Number(apEditing.newAp),reason=apEditing.reason.trim();
+  if(!Number.isFinite(amount)||amount<=0||!/^\\d+(\\.\\d{1,2})?$/.test(apEditing.newAp.trim())){setError('Introduce una AP positiva con máximo 2 decimales.');return;}
+  if(reason.length<5){setError('Escribe el motivo de la corrección (mínimo 5 caracteres).');return;}
+  if(!window.confirm('¿Confirmas cambiar la AP de '+apEditing.client_name+' de '+fmt(apEditing.oldAp)+' a '+fmt(amount)+'? La fecha de sometimiento y los porcentajes de split no cambiarán.'))return;
+  setApSaving(true);setError('');setNotice('');
+  const {data,error}=await window.flcSupabase.rpc('flc_request_policy_ap_correction',{p_sale_id:apEditing.id,p_new_ap:amount,p_reason:reason});
+  setApSaving(false);
+  if(error){setError('No se pudo procesar la corrección: '+error.message);return;}
+  setApEditing(null);
+  setNotice(data==='pending'?'Solicitud enviada a Administración. La AP actual permanece sin cambios hasta aprobar.':'AP corregida. Se registró el cambio; los reportes y rankings reflejarán el nuevo importe al actualizar.');
+  await load();setStandingsRefresh(x=>x+1);window.dispatchEvent(new Event('flc:new-sale'));
+ };
+ const reviewAP=async(row,approve)=>{if(apSaving)return;
+  if(!window.confirm((approve?'¿Aprobar':'¿Rechazar')+' corrección de '+fmt(row.previous_ap)+' a '+fmt(row.requested_ap)+'? Si apruebas, se retirará la verificación anterior hasta verificar el nuevo monto.'))return;
+  setApSaving(true);setError('');setNotice('');
+  const {error}=await window.flcSupabase.rpc('flc_admin_review_policy_ap_correction',{p_request_id:row.id,p_approve:approve});
+  setApSaving(false);if(error){setError('No se pudo revisar la solicitud: '+error.message);return;}
+  setNotice(approve?'Corrección aprobada. La póliza debe verificarse nuevamente como Issue Paid.':'Corrección rechazada.');
+  await load();setStandingsRefresh(x=>x+1);window.dispatchEvent(new Event('flc:new-sale'));
+ };
  const verifyPaid=async(row,verified)=>{if(verificationBusy)return;setVerificationBusy(true);setError('');setNotice('');const {error}=await window.flcSupabase.rpc('flc_admin_verify_issue_paid',{p_sale_id:row.id,p_verified:verified});setVerificationBusy(false);if(error)setError('No se pudo guardar la verificación: '+error.message);else{setNotice(verified?'Issue Paid verificada por Administración.':'Verificación retirada.');await load();}};
  const editStatus=row=>{setEditing({id:row.id,status:row.status,approved_on:row.approved_on||'',issue_paid_on:row.issue_paid_on||''});setError('');setNotice('');};
  const saveStatus=async()=>{if(!editing||statusSaving)return;setStatusSaving(true);setError('');setNotice('');
@@ -621,8 +653,29 @@ function ProductionCenter({user,setPage}) {
   Estado inicial: <strong>{form.initialDisposition}</strong>. Participantes: {form.partners.length+1}/5 · Total del split: <strong>{Number(splitTotal.toFixed(2))}%</strong> (debe ser 100%). Cada agente recibe su porcentaje de la AP. Los splits admiten agentes de otros equipos. La AP solo se reconoce oficialmente cuando Administración verifica Issue Paid.
  </div>
  <button disabled={saving} style={{padding:12,background:'#1a7440',color:'#fff',border:0,borderRadius:8,fontWeight:700,gridColumn:'1/-1'}}>{saving?'Guardando…':'Guardar póliza'}</button>
- </form>:<div style={{overflowX:'auto',background:'#fff',borderRadius:10,padding:12}}>{busy?<p>Cargando pólizas…</p>:<React.Fragment><p><strong>{rows.length}</strong> pólizas visibles según tus permisos <button type="button" onClick={load} disabled={busy} style={{marginLeft:12,background:'#176b3b',color:'#fff',border:'none',borderRadius:8,padding:'10px 16px',fontWeight:700,cursor:'pointer'}}>↻ Actualizar pólizas</button></p><table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}><thead><tr>{['Fecha','Cliente','Núm. póliza','Compañía','Producto','Lead','Estado','AP','Split','Acción'].map(k=><th key={k} style={{padding:10,textAlign:'left',borderBottom:'1px solid #ddd'}}>{k}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.id}>{[r.submitted_on,r.client_name,r.policy_number||'Pendiente',r.carrier,r.product_type,r.lead_source,r.status,'$'+Number(r.annual_premium).toLocaleString('en-US'),splitDisplay(r)].map((v,i)=><td key={i} style={{padding:10,borderBottom:'1px solid #eee'}}>{v}</td>)}<td style={{padding:10,borderBottom:'1px solid #eee'}}>{(user.role==='admin'||r.agent_id===user.id)&&<button onClick={()=>editStatus(r)} type="button" style={{background:"#176b3b",color:"#fff",padding:"9px",borderRadius:8,fontWeight:700}}>✎ Cambiar estado</button>} <button type="button" onClick={()=>openHistory(r)} style={{background:"#edf4ef",color:"#145732",padding:"9px",border:"1px solid #a7bca7",borderRadius:8,fontWeight:700}}>◷ Historial</button> {user.role==='admin'&&r.status==='Issue Paid'&&<button type="button" disabled={verificationBusy} onClick={()=>verifyPaid(r,!r.issue_paid_verified_at)} style={{display:'block',marginTop:6,padding:9,background:r.issue_paid_verified_at?'#f6ecec':'#154d2b',color:r.issue_paid_verified_at?'#8c3c3c':'white',border:'1px solid #8fae97',borderRadius:8,fontWeight:700,cursor:'pointer'}}>{r.issue_paid_verified_at?'✓ Verificada · Retirar':'✓ Verificar Issue Paid'}</button>}</td></tr>)}</tbody></table>{!rows.length&&<p>Aún no hay pólizas registradas.</p>}</React.Fragment>}</div>}
- {historyPolicy&&<section style={{padding:16,background:'#fff',border:'1px solid #dce5d8',borderRadius:10,marginTop:16}}><h3>Historial de estados · {historyPolicy.policy_number||historyPolicy.client_name}</h3><button type="button" onClick={()=>setHistoryPolicy(null)}>Cerrar</button>{historyRows.length?historyRows.map(h=><p key={h.id}>{new Date(h.changed_at).toLocaleString('es-US')} · <strong>{h.changed_by===user.id?user.name:(agents.find(a=>a.id===h.changed_by)?.full_name||'Usuario '+(h.changed_by?h.changed_by.slice(0,8):'no identificado'))}</strong> · {h.previous_status||'—'} → {h.new_status}</p>):<p>Sin cambios registrados desde que se activó el historial.</p>}</section>}
+ </form>:<div style={{overflowX:'auto',background:'#fff',borderRadius:10,padding:12}}>{busy?<p>Cargando pólizas…</p>:<React.Fragment><p><strong>{rows.length}</strong> pólizas visibles según tus permisos <button type="button" onClick={load} disabled={busy} style={{marginLeft:12,background:'#176b3b',color:'#fff',border:'none',borderRadius:8,padding:'10px 16px',fontWeight:700,cursor:'pointer'}}>↻ Actualizar pólizas</button></p><table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}><thead><tr>{['Fecha','Cliente','Núm. póliza','Compañía','Producto','Lead','Estado','AP','Split','Acción'].map(k=><th key={k} style={{padding:10,textAlign:'left',borderBottom:'1px solid #ddd'}}>{k}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.id}>{[r.submitted_on,r.client_name,r.policy_number||'Pendiente',r.carrier,r.product_type,r.lead_source,r.status,'$'+Number(r.annual_premium).toLocaleString('en-US'),splitDisplay(r)].map((v,i)=><td key={i} style={{padding:10,borderBottom:'1px solid #eee'}}>{v}</td>)}<td style={{padding:10,borderBottom:'1px solid #eee'}}>{(user.role==='admin'||r.agent_id===user.id)&&<button type="button" onClick={()=>editAP(r)} style={{background:'#e9f4e7',color:'#145732',padding:9,border:'1px solid #a7bca7',borderRadius:8,fontWeight:700,marginRight:5}}>✎ Corregir AP</button>} {(user.role==='admin'||r.agent_id===user.id)&&<button onClick={()=>editStatus(r)} type="button" style={{background:"#176b3b",color:"#fff",padding:"9px",borderRadius:8,fontWeight:700}}>✎ Cambiar estado</button>} <button type="button" onClick={()=>openHistory(r)} style={{background:"#edf4ef",color:"#145732",padding:"9px",border:"1px solid #a7bca7",borderRadius:8,fontWeight:700}}>◷ Historial</button> {user.role==='admin'&&r.status==='Issue Paid'&&<button type="button" disabled={verificationBusy} onClick={()=>verifyPaid(r,!r.issue_paid_verified_at)} style={{display:'block',marginTop:6,padding:9,background:r.issue_paid_verified_at?'#f6ecec':'#154d2b',color:r.issue_paid_verified_at?'#8c3c3c':'white',border:'1px solid #8fae97',borderRadius:8,fontWeight:700,cursor:'pointer'}}>{r.issue_paid_verified_at?'✓ Verificada · Retirar':'✓ Verificar Issue Paid'}</button>}</td></tr>)}</tbody></table>{!rows.length&&<p>Aún no hay pólizas registradas.</p>}</React.Fragment>}</div>}
+ {apEditing&&<section style={{padding:16,background:'#fff',border:'2px solid #9abc99',borderRadius:10,marginTop:16}}>
+  <h3 style={{marginTop:0}}>Corregir AP · {apEditing.client_name}</h3>
+  <p>AP actual: <strong>{fmt(apEditing.oldAp)}</strong>. La fecha de sometimiento y los splits permanecerán intactos.</p>
+  {apEditing.verified&&<p style={{color:'#92550c',fontWeight:700}}>Esta póliza ya está verificada: se enviará una solicitud a Administración. Su producción no cambiará hasta que se apruebe.</p>}
+  <label>AP corregida <input type="number" min="0.01" step="0.01" value={apEditing.newAp} onChange={e=>setApEditing(v=>({...v,newAp:e.target.value}))} style={{padding:10,margin:'0 12px',border:'1px solid #aac4aa',borderRadius:7}}/></label>
+  <label style={{display:'block',marginTop:12}}>Motivo del cambio <textarea maxLength={500} value={apEditing.reason} onChange={e=>setApEditing(v=>({...v,reason:e.target.value}))} rows={2} placeholder="Ej.: el cliente redujo la prima mensual" style={{display:'block',width:'min(100%,620px)',padding:10,border:'1px solid #aac4aa',borderRadius:7}}/></label>
+  <div style={{display:'flex',gap:10,marginTop:12}}>
+   <button type="button" disabled={apSaving} onClick={saveAP} style={{background:'#176b3b',color:'white',border:0,borderRadius:8,padding:11,fontWeight:700}}>{apSaving?'Guardando…':apEditing.verified?'Solicitar aprobación':'Guardar corrección'}</button>
+   <button type="button" disabled={apSaving} onClick={()=>setApEditing(null)}>Cancelar</button>
+  </div>
+ </section>}
+ {user.role==='admin'&&apCorrections.some(x=>x.state==='pending')&&<section style={{padding:16,background:'#fff',border:'1px solid #cfbd8d',borderRadius:10,marginTop:16}}>
+  <h3>Correcciones de AP pendientes de Administración</h3>
+  {apCorrections.filter(x=>x.state==='pending').map(x=><div key={x.id} style={{borderBottom:'1px solid #eee',padding:'10px 0'}}>
+   <strong>{rows.find(p=>p.id===x.policy_id)?.client_name||'Póliza'}</strong> · {fmt(x.previous_ap)} → {fmt(x.requested_ap)} · {x.reason}
+   <div style={{display:'flex',gap:8,marginTop:6}}><button type="button" disabled={apSaving} onClick={()=>reviewAP(x,true)}>Aprobar</button><button type="button" disabled={apSaving} onClick={()=>reviewAP(x,false)}>Rechazar</button></div>
+  </div>)}
+ </section>}
+ {historyPolicy&&<section style={{padding:16,background:'#fff',border:'1px solid #dce5d8',borderRadius:10,marginTop:16}}><h3>Historial de la póliza · {historyPolicy.policy_number||historyPolicy.client_name}</h3>
+  <h4>Correcciones de AP</h4>
+  {apCorrections.filter(x=>x.policy_id===historyPolicy.id).length?apCorrections.filter(x=>x.policy_id===historyPolicy.id).map(x=><p key={x.id}>{new Date(x.created_at).toLocaleString('es-US',{timeZone:'America/New_York'})} · {fmt(x.previous_ap)} → {fmt(x.requested_ap)} · {x.state==='applied'?'Aplicada':x.state==='pending'?'Pendiente':x.state==='approved'?'Aprobada':'Rechazada'} · Motivo: {x.reason}</p>):<p>Sin correcciones de AP registradas.</p>}
+  <h4>Cambios de estado</h4><button type="button" onClick={()=>setHistoryPolicy(null)}>Cerrar</button>{historyRows.length?historyRows.map(h=><p key={h.id}>{new Date(h.changed_at).toLocaleString('es-US')} · <strong>{h.changed_by===user.id?user.name:(agents.find(a=>a.id===h.changed_by)?.full_name||'Usuario '+(h.changed_by?h.changed_by.slice(0,8):'no identificado'))}</strong> · {h.previous_status||'—'} → {h.new_status}</p>):<p>Sin cambios registrados desde que se activó el historial.</p>}</section>}
  </div>;
 }
 window.ProductionCenter=ProductionCenter;
