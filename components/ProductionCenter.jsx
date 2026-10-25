@@ -323,6 +323,25 @@ function ProductionCenter({user,setPage}) {
  </div>
  {user.role==='admin'&&<label style={{marginLeft:12}}>Estructura: <select value={structureFilter} onChange={e=>setStructureFilter(e.target.value)}><option value="">Toda la agencia</option>{leaderRows.map(l=><option key={l.leader_id} value={l.leader_id}>{l.leader_name}</option>)}</select></label>}
  {structureLoading&&<p>Cargando estructura seleccionada…</p>}{structureError&&<p role="alert" style={{color:'#a33'}}>{structureError}</p>}
+ {user.role==='admin'&&!structureFilter&&<section style={{margin:'16px 0 22px',padding:18,background:'#eef7ee',border:'1px solid #a6c9aa',borderRadius:12}}>
+  <h3 style={{margin:'0 0 6px'}}>📊 Panel ejecutivo · Toda Future Legacy Creators</h3>
+  <p style={{fontSize:13,color:'#46604b'}}>Resumen de {rangeLabel}. Los splits se acreditan por porcentaje y cada agente productor cuenta una vez. Inversión en leads declarada, sin validación administrativa.</p>
+  {periodTeamError?<p role="alert">{periodTeamError}</p>:agencyTotals?<React.Fragment>
+   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:10}}>
+    {metric('AP sometida · agencia',fmt(agencyTotals.submitted_ap))}
+    {metric('AP Issue Paid verificada',fmt(agencyTotals.verified_ap))}
+    {metric('Agentes que sometieron',Number(agencyTotals.submitting_agents).toLocaleString('en-US'))}
+    {metric('Agentes con IP verificada',Number(agencyTotals.verified_agents).toLocaleString('en-US'))}
+    {metric('Promedio AP sometida / agente',fmt(Number(agencyTotals.submitting_agents)?Number(agencyTotals.submitted_ap)/Number(agencyTotals.submitting_agents):0))}
+    {metric('Promedio AP verificada / agente',fmt(Number(agencyTotals.verified_agents)?Number(agencyTotals.verified_ap)/Number(agencyTotals.verified_agents):0))}
+    {metric('Pólizas sometidas',Number(agencyTotals.submitted_policies).toLocaleString('en-US'))}
+    {metric('Pólizas IP verificadas',Number(agencyTotals.verified_policies).toLocaleString('en-US'))}
+    {metric('Inversión total en leads',fmt(scopedLeads.reduce((total,l)=>total+Number(l.amount),0)))}
+   </div>
+   <p style={{fontSize:12,color:'#516552'}}>La AP sometida usa fecha de sometimiento y la AP verificada usa fecha de Issue Paid; pueden ser pólizas distintas en este período. La efectividad real de conversión por cohorte se consulta en su ranking, no dividiendo estos dos montos.</p>
+   <p style={{fontSize:13}}><strong>Inversión por proveedor:</strong> {[...new Set(scopedLeads.map(l=>l.provider))].sort().map(provider=>provider+' ('+fmt(scopedLeads.filter(l=>l.provider===provider).reduce((n,l)=>n+Number(l.amount),0))+')').join(' · ')||'Sin registros para este período'}</p>
+  </React.Fragment>:<p>Cargando totales de agencia…</p>}
+ </section>}
  <h3>👤 Producción personal</h3>
  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
  {metric('Mis pólizas sometidas',mySubmitted.length)}
