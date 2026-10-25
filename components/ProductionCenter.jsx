@@ -457,7 +457,6 @@ function ProductionCenter({user,setPage}) {
  {field('Estado al registrar *',<select required style={inp} value={form.initialDisposition} onChange={e=>change('initialDisposition',e.target.value)}>
   <option value="Sometida">Sometida</option>
   <option value="Aprobada en pantalla">Aprobada en pantalla</option>
-  <option value="Enviada a underwriting">Enviada a underwriting</option>
  </select>)}
  {user.role==='admin'&&field('Agente principal *',<select style={inp} value={form.primary} onChange={e=>change('primary',e.target.value)}><option value="">Administración (mi cuenta)</option>{agents.map(a=><option key={a.id} value={a.id}>{a.full_name}</option>)}</select>)}
  {splitPartnerError&&<p role="alert" style={{gridColumn:'1/-1',color:'#a33',margin:0}}>{splitPartnerError}</p>}
