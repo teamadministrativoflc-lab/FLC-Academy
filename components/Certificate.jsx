@@ -45,19 +45,35 @@ function Certificate({ user, modules, progress, lang, onClose }) {
 
       {/* Print styles injected inline */}
       <style>{`
+        @page { size: landscape; margin: 0; }
         @media print {
-          body * { visibility: hidden; }
-          #certificate-print, #certificate-print * { visibility: visible; }
+          html, body, #root {
+            width: 100% !important; height: 100% !important;
+            margin: 0 !important; padding: 0 !important;
+            overflow: hidden !important;
+          }
+          body * { visibility: hidden !important; }
+          #certificate-modal {
+            position: fixed !important; inset: 0 !important;
+            width: 100vw !important; height: 100vh !important;
+            padding: 0 !important; margin: 0 !important;
+            overflow: hidden !important; background: none !important;
+            backdrop-filter: none !important; display: block !important;
+          }
+          #certificate-print, #certificate-print * { visibility: visible !important; }
           #certificate-print {
-            position: absolute !important;
-            left: 0 !important; top: 0 !important;
-            width: 100% !important; margin: 0 !important; padding: 40px !important;
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important; height: 100vh !important;
+            box-sizing: border-box !important;
+            aspect-ratio: auto !important;
+            margin: 0 !important; padding: 5vh 5vw !important;
+            overflow: hidden !important;
             box-shadow: none !important; border-radius: 0 !important;
-            page-break-inside: avoid;
+            break-inside: avoid !important; page-break-inside: avoid !important;
           }
           .cert-no-print { display: none !important; }
         }
-        @page { size: landscape; margin: 0; }
       `}</style>
 
       <div onClick={e => e.stopPropagation()} style={{
