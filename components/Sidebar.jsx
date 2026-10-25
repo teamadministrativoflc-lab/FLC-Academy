@@ -1,4 +1,4 @@
-function Sidebar({ page, setPage, user, onLogout, t, lang }) {
+function Sidebar({ page, setPage, user, onLogout, t, lang, isLeader }) {
   // Order requested by user: inicio, tutoriales, mi progreso, recursos, compañías, el matcher
   const items = [
     { id: 'dashboard', icon: 'home',     label: t('nav_dashboard') },
@@ -7,6 +7,15 @@ function Sidebar({ page, setPage, user, onLogout, t, lang }) {
     { id: 'resources', icon: 'book',     label: t('nav_resources') },
     { id: 'companies', icon: 'building', label: t('nav_companies') },
     { id: 'matcher',   icon: 'compass',  label: t('nav_matcher'), badge: 'AI' },
+    { id: 'challenges',icon: 'sparkle',  label: 'Retos FLC' },
+    { id: 'badges',    icon: 'star',     label: 'Mis insignias' },
+    { id: 'production',icon: 'clipboard',label: 'Mis ventas / Nueva póliza' },
+    ...(isLeader&&user.role!=='admin'?[{id:'team',icon:'handshake',label:'Mi equipo'}]:[]),
+    ...(user.role==='admin'?[
+      {id:'ceo',icon:'chart',label:'Panel de Dirección FLC'},
+      {id:'admin',icon:'progress',label:'Seguimiento de agentes'},
+      {id:'ranks',icon:'shield',label:'Administración de Rangos'}
+    ]:[]),
   ];
 
   const initials = (user.name || 'A').split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
@@ -23,14 +32,16 @@ function Sidebar({ page, setPage, user, onLogout, t, lang }) {
         </div>
       </div>
 
-      <div className="sb-section-label">{lang === 'es' ? 'Menú' : 'Menu'}</div>
-      {items.map(it => (
-        <div key={it.id} className={`sb-item ${page === it.id ? 'active' : ''}`} onClick={() => setPage(it.id)}>
-          <span className="sb-icon"><I name={it.icon} /></span>
-          {it.label}
-          {it.badge && <span className="sb-badge">{it.badge}</span>}
-        </div>
-      ))}
+      <nav className="sb-nav" aria-label={lang==='es'?'Navegación principal':'Main navigation'}>
+        <div className="sb-section-label">{lang === 'es' ? 'Menú' : 'Menu'}</div>
+        {items.map(it => (
+          <div key={it.id} className={`sb-item ${page === it.id ? 'active' : ''}`} onClick={() => setPage(it.id)}>
+            <span className="sb-icon"><I name={it.icon} /></span>
+            {it.label}
+            {it.badge && <span className="sb-badge">{it.badge}</span>}
+          </div>
+        ))}
+      </nav>
 
       <div className="sb-footer">
         <div className="sb-user" onClick={onLogout} title={t('nav_logout')}>

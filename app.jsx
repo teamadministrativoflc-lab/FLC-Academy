@@ -103,7 +103,7 @@ function App() {
 
   return (
     <div className="app">
-      <Sidebar page={page} setPage={setPage} user={user} onLogout={async () => {sessionStorage.removeItem('flc_login_logged_'+user.id);await window.flcSupabase.auth.signOut();setUser(null);}} t={t} lang={lang} />
+      <Sidebar page={page} setPage={setPage} user={user} isLeader={isLeader} onLogout={async () => {sessionStorage.removeItem('flc_login_logged_'+user.id);await window.flcSupabase.auth.signOut();setUser(null);}} t={t} lang={lang} />
       <div className="main">
         <div className="topbar">
           <div />
@@ -114,13 +114,6 @@ function App() {
             </div>
           </div>
         </div>
-        <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('challenges')} style={{padding:'9px 16px',border:'1px solid #a3c592',borderRadius:7,background:'#edf7e6',cursor:'pointer'}}>🚀 Retos FLC</button></div>
-        <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('badges')} style={{padding:'9px 16px',border:'1px solid #cfb05a',borderRadius:7,background:'#fff7de',cursor:'pointer'}}>🏅 Mis insignias</button></div>
-        <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('production')} style={{padding:'9px 16px',border:'1px solid #8da588',borderRadius:7,background:'#eef4ea',cursor:'pointer'}}>📋 Mis ventas / Nueva póliza</button></div>
-        {isLeader && user.role !== 'admin' && <div style={{padding:'4px 28px'}}><button onClick={()=>setPage('team')} style={{padding:'9px 16px',border:'1px solid #8da588',borderRadius:7,background:'#eef4ea',cursor:'pointer'}}>👥 Mi equipo</button></div>}
-        {user.role === "admin" && <div style={{padding:"4px 28px"}}><button onClick={()=>setPage("ceo")} style={{padding:"9px 16px",border:"1px solid #91b99b",borderRadius:7,background:"#e7f6ea",cursor:"pointer",fontWeight:700}}>📊 Panel de Dirección FLC</button></div>}
-        {user.role === "admin" && <div style={{padding:"4px 28px"}}><button onClick={() => setPage("admin")} style={{padding:"9px 16px",border:"1px solid #8da588",borderRadius:7,background:"#eef4ea",cursor:"pointer"}}>📊 Seguimiento de agentes</button></div>}
-        {user.role === "admin" && <div style={{padding:"4px 28px"}}><button onClick={()=>setPage("ranks")} style={{padding:"9px 16px",border:"1px solid #8da588",borderRadius:7,background:"#eef4ea",cursor:"pointer"}}>🏆 Administración de Rangos</button></div>}
         {pages[page] || pages.dashboard}
       </div>
 
