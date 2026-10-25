@@ -55,6 +55,8 @@ function ProductionCenter({user,setPage}) {
  const [verificationBusy,setVerificationBusy]=React.useState(false);
  const [apEditing,setApEditing]=React.useState(null);
  const [apCorrections,setApCorrections]=React.useState([]);
+ const [apCorrectionsLoadError,setApCorrectionsLoadError]=React.useState('');
+ const [approvalFilter,setApprovalFilter]=React.useState('pending');
  const [apSaving,setApSaving]=React.useState(false);
  const [historyPolicy,setHistoryPolicy]=React.useState(null);
  const [historyRows,setHistoryRows]=React.useState([]);
@@ -70,7 +72,8 @@ function ProductionCenter({user,setPage}) {
   const corrections=await window.flcSupabase.from('flc_policy_ap_corrections')
    .select('id,policy_id,requested_by,previous_ap,requested_ap,reason,state,reviewed_by,reviewed_at,created_at')
    .order('created_at',{ascending:false}).limit(500);
-  if(!corrections.error)setApCorrections(corrections.data||[]);
+  if(corrections.error){setApCorrectionsLoadError('No fue posible consultar las solicitudes de AP: '+corrections.error.message);setApCorrections([]);}
+  else{setApCorrectionsLoadError('');setApCorrections(corrections.data||[]);}
   setBusy(false);};
  React.useEffect(()=>{let active=true;setAgencyStandingsLoading(true);setAgencyStandingsError('');
   window.flcSupabase.rpc('flc_agency_submitted_standings',{p_start:rangeStart,p_end:rangeEnd}).then(({data,error})=>{
@@ -413,7 +416,7 @@ function ProductionCenter({user,setPage}) {
    {id:'ranking',label:'🏆 Ranking de agentes'},
    ...(canViewTeam?[{id:'teams',label:'👥 Equipos y podios'}]:[]),
    {id:'leads',label:'📈 Inversión en leads'},
-   ...(user.role==='admin'?[{id:'goals',label:'🎯 Metas y reporte upline'}]:[])
+   ...(user.role==='admin'?[{id:'approvals',label:'✅ Solicitudes de aprobación'}, {id:'goals',label:'🎯 Metas y reporte upline'}]:[])
   ].map(item=><button key={item.id} type="button" onClick={()=>setActiveSection(item.id)} aria-current={activeSection===item.id?'page':undefined} style={{padding:'11px 14px',borderRadius:9,fontWeight:700,cursor:'pointer',border:activeSection===item.id?'2px solid #154e30':'1px solid #bfd0bf',color:activeSection===item.id?'white':'#1d432d',background:activeSection===item.id?'#176b3b':'white'}}>{item.label}</button>)}
  </nav>
  <section style={{padding:18,margin:'14px 0',border:'1px solid #dce5d8',borderRadius:12,background:'#fff'}}>
@@ -635,6 +638,33 @@ function ProductionCenter({user,setPage}) {
   <p style={{fontSize:12,color:'#5c6b5d'}}>Mis inversiones en el período: {fmt(scopedLeads.filter(l=>l.agent_id===user.id).reduce((n,l)=>n+Number(l.amount),0))} · {scopedLeads.filter(l=>l.agent_id===user.id).length} registros.</p>
  </section>
  </div>
+ {user.role==='admin'&&<section aria-label="Solicitudes de aprobación" style={{display:activeSection==='approvals'?'block':'none',padding:18,background:'#fff',border:'1px solid #cfdfcf',borderRadius:12,margin:'20px 0'}}>
+  <h2 style={{marginTop:0}}>✅ Solicitudes de aprobación de AP</h2>
+  <p style={{color:'#536454',fontSize:13}}>Solo Administración puede aprobar o rechazar cambios de AP en pólizas Issue Paid verificadas. Una aprobación retira la verificación anterior hasta confirmar nuevamente el monto corregido.</p>
+  <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',margin:'14px 0'}}>
+   <button type="button" aria-pressed={approvalFilter==='pending'} onClick={()=>setApprovalFilter('pending')} style={{padding:'10px 13px',borderRadius:8,background:approvalFilter==='pending'?'#176b3b':'#eff4ed',color:approvalFilter==='pending'?'white':'#1b5130',fontWeight:700}}>Pendientes ({apCorrections.filter(x=>x.state==='pending').length})</button>
+   <button type="button" aria-pressed={approvalFilter==='history'} onClick={()=>setApprovalFilter('history')} style={{padding:'10px 13px',borderRadius:8,background:approvalFilter==='history'?'#176b3b':'#eff4ed',color:approvalFilter==='history'?'white':'#1b5130',fontWeight:700}}>Historial ({apCorrections.filter(x=>x.state!=='pending').length})</button>
+   <button type="button" disabled={busy||apSaving} onClick={load} style={{padding:'10px 13px',borderRadius:8,border:'1px solid #a9c2aa'}}>↻ Actualizar solicitudes</button>
+  </div>
+  {apCorrectionsLoadError&&<p role="alert" style={{color:'#a12d28',fontWeight:700}}>{apCorrectionsLoadError}</p>}
+  {error&&<p role="alert" style={{color:'#a12d28'}}>{error}</p>}
+  {notice&&<p role="status" style={{color:'#176b3b'}}>{notice}</p>}
+  {!apCorrectionsLoadError&&!(approvalFilter==='pending'?apCorrections.some(x=>x.state==='pending'):apCorrections.some(x=>x.state!=='pending'))&&<p style={{padding:16,background:'#f2f7ef',borderRadius:9,color:'#46624d'}}>{approvalFilter==='pending'?'No hay solicitudes pendientes en este momento.':'Todavía no hay correcciones aprobadas, aplicadas o rechazadas.'}</p>}
+  {apCorrections.filter(x=>approvalFilter==='pending'?x.state==='pending':x.state!=='pending').map(x=>{
+   const policy=rows.find(p=>p.id===x.policy_id);
+   const requester=agents.find(a=>(a.id||a.agent_id)===x.requested_by);
+   const reviewer=agents.find(a=>(a.id||a.agent_id)===x.reviewed_by);
+   const stateText=({pending:'Pendiente',applied:'Aplicada',approved:'Aprobada',rejected:'Rechazada'})[x.state]||x.state;
+   return <article key={x.id} style={{padding:15,marginBottom:11,border:'1px solid #d4e0d0',borderRadius:10,background:'#fbfcf9'}}>
+    <div style={{display:'flex',justifyContent:'space-between',gap:10,flexWrap:'wrap'}}><strong>{policy?.client_name||'Póliza '+x.policy_id.slice(0,8)}</strong><span style={{fontWeight:700,color:x.state==='pending'?'#926017':'#24633c'}}>{stateText}</span></div>
+    <p style={{margin:'6px 0'}}>AP anterior: <strong>{fmt(x.previous_ap)}</strong> → AP solicitada: <strong>{fmt(x.requested_ap)}</strong></p>
+    <p style={{margin:'6px 0'}}>Motivo: {x.reason||'No registrado'}</p>
+    <p style={{margin:'6px 0',fontSize:12,color:'#566757'}}>Solicitó: {requester?.full_name||(x.requested_by===user.id?user.name:'Usuario '+(x.requested_by||'').slice(0,8))} · {new Date(x.created_at).toLocaleString('es-US',{timeZone:'America/New_York'})}</p>
+    {x.reviewed_at&&<p style={{margin:'6px 0',fontSize:12,color:'#566757'}}>Revisó: {reviewer?.full_name||(x.reviewed_by===user.id?user.name:'Usuario '+(x.reviewed_by||'').slice(0,8))} · {new Date(x.reviewed_at).toLocaleString('es-US',{timeZone:'America/New_York'})}</p>}
+    {x.state==='pending'&&<div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}}><button type="button" disabled={apSaving} onClick={()=>reviewAP(x,true)} style={{padding:'9px 13px',background:'#176b3b',color:'#fff',borderRadius:8,fontWeight:700}}>Aprobar</button><button type="button" disabled={apSaving} onClick={()=>reviewAP(x,false)} style={{padding:'9px 13px',background:'#f8eeee',color:'#8a3333',border:'1px solid #d6b3b3',borderRadius:8,fontWeight:700}}>Rechazar</button></div>}
+   </article>;
+  })}
+ </section>}
  <div style={{display:activeSection==='policies'?'block':'none'}}>
  <div style={{display:'flex',gap:10,margin:'14px 0 22px'}}><button style={inp} onClick={()=>setTab('list')}>Mis ventas / Producción</button><button style={inp} onClick={()=>setTab('new')}>＋ Nueva póliza</button></div>
  {editing&&<section style={{padding:18,background:'#fff',border:'1px solid #bad1be',borderRadius:10,marginBottom:16}}>
@@ -691,13 +721,7 @@ function ProductionCenter({user,setPage}) {
    <button type="button" disabled={apSaving} onClick={()=>setApEditing(null)}>Cancelar</button>
   </div>
  </section>}
- {user.role==='admin'&&apCorrections.some(x=>x.state==='pending')&&<section style={{padding:16,background:'#fff',border:'1px solid #cfbd8d',borderRadius:10,marginTop:16}}>
-  <h3>Correcciones de AP pendientes de Administración</h3>
-  {apCorrections.filter(x=>x.state==='pending').map(x=><div key={x.id} style={{borderBottom:'1px solid #eee',padding:'10px 0'}}>
-   <strong>{rows.find(p=>p.id===x.policy_id)?.client_name||'Póliza'}</strong> · {fmt(x.previous_ap)} → {fmt(x.requested_ap)} · {x.reason}
-   <div style={{display:'flex',gap:8,marginTop:6}}><button type="button" disabled={apSaving} onClick={()=>reviewAP(x,true)}>Aprobar</button><button type="button" disabled={apSaving} onClick={()=>reviewAP(x,false)}>Rechazar</button></div>
-  </div>)}
- </section>}
+
  {historyPolicy&&<section style={{padding:16,background:'#fff',border:'1px solid #dce5d8',borderRadius:10,marginTop:16}}><h3>Historial de la póliza · {historyPolicy.policy_number||historyPolicy.client_name}</h3>
   <h4>Correcciones de AP</h4>
   {apCorrections.filter(x=>x.policy_id===historyPolicy.id).length?apCorrections.filter(x=>x.policy_id===historyPolicy.id).map(x=><p key={x.id}>{new Date(x.created_at).toLocaleString('es-US',{timeZone:'America/New_York'})} · {fmt(x.previous_ap)} → {fmt(x.requested_ap)} · {x.state==='applied'?'Aplicada':x.state==='pending'?'Pendiente':x.state==='approved'?'Aprobada':'Rechazada'} · Motivo: {x.reason}</p>):<p>Sin correcciones de AP registradas.</p>}
