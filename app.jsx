@@ -1,4 +1,5 @@
 function App() {
+  const [mobileOpen,setMobileOpen]=React.useState(false);
   const [lang, setLang] = React.useState(() => localStorage.getItem('flc_lang') || 'es');
   const [user, setUser] = React.useState(null);
   const [authReady, setAuthReady] = React.useState(false);
@@ -101,12 +102,14 @@ function App() {
     progress: <Progress t={t} lang={lang} progress={progress} setProgress={setProgress} user={user} />,
   };
 
+  const navigate=next=>{setPage(next);setMobileOpen(false);};
   return (
     <div className="app">
-      <Sidebar page={page} setPage={setPage} user={user} isLeader={isLeader} onLogout={async () => {sessionStorage.removeItem('flc_login_logged_'+user.id);await window.flcSupabase.auth.signOut();setUser(null);}} t={t} lang={lang} />
+      <Sidebar page={page} setPage={navigate} user={user} isLeader={isLeader} mobileOpen={mobileOpen} onClose={()=>setMobileOpen(false)} onLogout={async () => {sessionStorage.removeItem('flc_login_logged_'+user.id);await window.flcSupabase.auth.signOut();setUser(null);}} t={t} lang={lang} />
+      {mobileOpen&&<button type="button" className="mobile-menu-backdrop" aria-label="Cerrar menú" onClick={()=>setMobileOpen(false)}/>}
       <div className="main">
         <div className="topbar">
-          <div />
+          <button type="button" className="mobile-menu-button" aria-label="Abrir menú principal" aria-expanded={mobileOpen} onClick={()=>setMobileOpen(true)}>☰ <span>Menú</span></button>
           <div className="topbar-actions">
             <div className="lang-toggle">
               <button className={lang === 'es' ? 'active' : ''} onClick={() => setLang('es')}>ES</button>
