@@ -43,16 +43,20 @@ function LiveSalesFeed({user}) {
  const people=r=>Array.isArray(r.participants)?r.participants:[];
  const message=r=>{
   const ps=people(r);
-  return ['🎉 ¡NUEVA VENTA!','',
-   '👤 Agente principal: '+r.principal_name,
-   '🤝 Cliente: '+r.client_name,
-   ...(ps.length>1?['🤝 Venta en equipo (split):',...ps.map(p=>'• '+p.name+' — '+Number(p.percent)+'% ('+money(p.credited_ap)+')')]:[]),
-   '🏢 Compañía: '+r.carrier,
-   '📄 Producto: '+r.product_type,
-   '💰 AP total: '+money(r.total_ap),
-   '📋 Estado: '+(r.status||'Sometida'),
+  const firstNames=ps.length>1?ps.map(p=>p.name.split(' ')[0]).join(' y '):r.principal_name.split(' ')[0];
+  // Keep WhatsApp's shared text free of emoji glyphs: some clients
+  // replace those Unicode characters with black question-mark diamonds.
+  return ['*NUEVA VENTA - FUTURE LEGACY CREATORS*','',
+   '*Agente principal:* '+r.principal_name,
+   '*Cliente:* '+r.client_name,
+   ...(ps.length>1?['*Venta en equipo (split):*',...ps.map(p=>'- '+p.name+' | '+Number(p.percent)+'% | '+money(p.credited_ap))]:[]),
+   '*Compañía:* '+r.carrier,
+   '*Producto:* '+r.product_type,
+   '*AP total:* '+money(r.total_ap),
+   '*Estado:* '+(r.status||'Sometida'),
    '',
-   '💪🔥 ¡Felicidades '+(ps.length>1?ps.map(p=>p.name.split(' ')[0]).join(' y '):r.principal_name.split(' ')[0])+'! ¡Seguimos construyendo legados!'].join('\n');
+   '*¡Felicidades, '+firstNames+'!*',
+   '¡Seguimos construyendo legados!'].join('\\n');
  };
  const copy=async r=>{try{await navigator.clipboard.writeText(message(r));setError('✓ Mensaje copiado para compartir.');}catch(e){setError('No se pudo copiar. Usa Compartir por WhatsApp.');}};
  const whatsApp=r=>window.open('https://wa.me/?text='+encodeURIComponent(message(r)),'_blank','noopener,noreferrer');
