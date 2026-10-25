@@ -3,6 +3,10 @@ function ProductionCenter({user,setPage}) {
  const carriers=['National Life Group','F&G','Foresters','American Amicable','Transamerica','Mutual of Omaha','Aetna','Americo','Lincoln Heritage','Occidental','Corebridge','Athene','Otro'];
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',partners:[],primaryPct:'100',date:new Date().toISOString().slice(0,10),primary:'',initialDisposition:'Sometida'});
+ const [uplineGoal,setUplineGoal]=React.useState('');
+ const [savedUplineGoal,setSavedUplineGoal]=React.useState(null);
+ const [goalBusy,setGoalBusy]=React.useState(false);
+ const [goalError,setGoalError]=React.useState('');
  const [periodType,setPeriodType]=React.useState('month');
  const [periodDate,setPeriodDate]=React.useState(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()));
  const anchor=new Date(periodDate+'T12:00:00Z');
@@ -249,6 +253,44 @@ function ProductionCenter({user,setPage}) {
  // Work in cents to avoid floating-point awards at the $100 boundary.
  const legacyPoints=ap=>Math.floor(Math.max(0,Math.round(Number(ap||0)*100))/10000);
  const fmt=x=>Number(x).toLocaleString('en-US',{style:'currency',currency:'USD'});
+ React.useEffect(()=>{let active=true;if(user.role!=='admin')return;
+  setGoalError('');setSavedUplineGoal(null);setUplineGoal('');
+  window.flcSupabase.from('flc_agency_ap_goals').select('target_ap').eq('period_type',periodType).eq('period_start',rangeStart).maybeSingle().then(({data,error})=>{
+   if(!active)return;
+   if(error){setGoalError('Falta ejecutar SQL 034 o no hay acceso a las metas de la agencia.');return;}
+   const target=data?Number(data.target_ap):null;setSavedUplineGoal(target);setUplineGoal(target===null?'':String(target));
+  });
+  return()=>{active=false;};
+ },[user.id,user.role,periodType,rangeStart]);
+ const saveUplineGoal=async()=>{
+  const goal=Number(uplineGoal);
+  if(!Number.isFinite(goal)||goal<=0){setGoalError('Introduce una meta válida de AP sometida.');return;}
+  setGoalBusy(true);setGoalError('');
+  const {error}=await window.flcSupabase.from('flc_agency_ap_goals').upsert({
+   period_type:periodType,period_start:rangeStart,target_ap:goal,updated_at:new Date().toISOString(),updated_by:user.id
+  },{onConflict:'period_type,period_start'});
+  setGoalBusy(false);
+  if(error){setGoalError('No se pudo guardar la meta: '+error.message);return;}
+  setSavedUplineGoal(goal);setNotice('Meta de AP sometida guardada para el período '+rangeLabel+'.');
+ };
+ const printUplineReport=()=>{
+  if(user.role!=='admin'||structureFilter||!agencyTotals||periodTeamError)return;
+  const goal=Number(savedUplineGoal);
+  if(!Number.isFinite(goal)||goal<=0){setError('Guarda primero la meta de AP sometida de este período.');return;}
+  const safe=v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const reportAP=Number(agencyTotals.submitted_ap||0);
+  const percent=reportAP/goal*100;
+  const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte FLC - ${safe(rangeLabel)}</title>
+  <style>body{font:16px Arial,sans-serif;color:#14251a;max-width:840px;margin:35px auto;padding:0 24px}h1{font-size:30px;margin-bottom:6px}header{border-bottom:5px solid #0c873e;padding-bottom:18px}.muted{color:#617367}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin:26px 0}.card{border:1px solid #dde6dd;border-radius:16px;padding:24px;box-shadow:0 2px 7px #d5ded5}.card strong{font-size:33px;display:block;margin-top:14px}.goal{border:1px solid #8be9b0;border-radius:17px;padding:28px;background:#ecfbf2}.goal strong{font-size:30px}.progress{height:24px;background:#d4e8db;border-radius:20px;overflow:hidden;margin:20px 0}.progress span{display:block;height:100%;background:#0ecc61}.success{color:#086a30}.note{font-size:12px;color:#647169;margin-top:32px}.print{background:#126c3a;color:white;border:0;border-radius:8px;padding:12px 20px;cursor:pointer;margin-bottom:20px}@media print{body{margin:12mm auto}.print{display:none}@page{size:letter;margin:12mm}}</style>
+  </head><body><button class="print" onclick="window.print()">Imprimir o guardar como PDF</button><header><div class="muted">FUTURE LEGACY CREATORS</div><h1>Ranking · Resumen de agencia</h1><div class="muted">AP sometida · ${safe(rangeLabel)} · ${safe(carrierFilter||'Todas las compañías')}</div></header>
+  <div class="grid"><div class="card">Pólizas sometidas<strong>${Number(agencyTotals.submitted_policies)}</strong></div><div class="card">AP total sometida<strong>${safe(fmt(reportAP))}</strong></div></div>
+  <section class="goal"><h2>◎ Meta de la agencia · ${safe(periodType==='day'?'Día':periodType==='week'?'Semana':periodType==='month'?'Mes':'Año')}</h2><p><strong>${safe(fmt(reportAP))}</strong> de ${safe(fmt(goal))} · <strong class="success">${percent.toFixed(1)}%</strong></p><div class="progress"><span style="width:${Math.min(100,Math.max(0,percent))}%"></span></div><p class="success">${reportAP>=goal?'¡Meta cumplida! La agencia alcanzó su meta de AP sometida en este período.':'Faltan '+safe(fmt(goal-reportAP))+' para alcanzar la meta de AP sometida.'}</p></section>
+  <div class="grid"><div class="card">Agentes que sometieron<strong>${Number(agencyTotals.submitting_agents)}</strong></div><div class="card">Promedio por agente productor<strong>${safe(fmt(Number(agencyTotals.submitting_agents)?reportAP/Number(agencyTotals.submitting_agents):0))}</strong></div></div>
+  <p class="note">Solo AP sometida, no Issue Paid. Una póliza se cuenta una sola vez; en splits los agentes se cuentan individualmente y sus montos se acreditan proporcionalmente. Reporte de agencia sin nombres ni datos personales de agentes o clientes. Generado desde FLC Academy.</p></body></html>`;
+  const w=window.open('','_blank');
+  if(!w){setError('El navegador bloqueó la ventana del reporte. Permite ventanas emergentes para FLC Academy.');return;}
+  w.document.open();w.document.write(html);w.document.close();w.focus();
+ };
  const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
  const inp={padding:10,border:'1px solid #ccd8cd',borderRadius:7,width:'100%',fontSize:14,background:'#fff'};
@@ -341,6 +383,21 @@ function ProductionCenter({user,setPage}) {
    <p style={{fontSize:12,color:'#516552'}}>La AP sometida usa fecha de sometimiento y la AP verificada usa fecha de Issue Paid; pueden ser pólizas distintas en este período. La efectividad real de conversión por cohorte se consulta en su ranking, no dividiendo estos dos montos.</p>
    <p style={{fontSize:13}}><strong>Inversión por proveedor:</strong> {[...new Set(scopedLeads.map(l=>l.provider))].sort().map(provider=>provider+' ('+fmt(scopedLeads.filter(l=>l.provider===provider).reduce((n,l)=>n+Number(l.amount),0))+')').join(' · ')||'Sin registros para este período'}</p>
   </React.Fragment>:<p>Cargando totales de agencia…</p>}
+ </section>}
+ {user.role==='admin'&&!structureFilter&&<section style={{margin:'18px 0',padding:18,background:'#fff',border:'1px solid #b7cdb8',borderRadius:12}}>
+  <h3 style={{marginTop:0}}>🎯 Metas de AP sometida de la agencia</h3>
+  <p style={{fontSize:13,color:'#506a56'}}>Configura aquí la meta del período seleccionado: {rangeLabel}. Las metas de día, semana, mes y año se guardan por separado y no requieren editar código. Solo Administración puede cambiarlas.</p>
+  <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'end'}}>
+   <label style={{display:'flex',flexDirection:'column',gap:6,fontWeight:600}}>Meta de AP sometida (USD)
+    <input type="number" min="1" step="0.01" value={uplineGoal} onChange={e=>setUplineGoal(e.target.value)} placeholder="Ej. 1000000" style={{padding:10,border:'1px solid #bfd2c0',borderRadius:7,width:220}}/>
+   </label>
+   <button type="button" disabled={goalBusy} onClick={saveUplineGoal} style={{padding:'11px 18px',border:0,borderRadius:8,background:'#126b3b',color:'#fff',fontWeight:700,cursor:'pointer'}}>{goalBusy?'Guardando…':'Guardar meta'}</button>
+  </div>
+  {goalError&&<p role="alert" style={{color:'#aa382d'}}>{goalError}</p>}
+  <h3>📤 Reporte para tu upline</h3>
+  <p style={{fontSize:13}}>Resumen visual de pólizas, AP sometida y progreso de la meta, como tu ejemplo. Sin nombres de agentes y sin información de clientes.</p>
+  <button type="button" onClick={printUplineReport} disabled={!agencyTotals||!!periodTeamError||!savedUplineGoal} style={{padding:'11px 18px',border:0,borderRadius:8,background:'#126b3b',color:'#fff',fontWeight:700,cursor:'pointer'}}>Vista previa / Guardar PDF</button>
+  <p style={{fontSize:12,color:'#657665'}}>Meta guardada: {savedUplineGoal?fmt(savedUplineGoal):'Sin configurar para este período'}. No se comparte automáticamente.</p>
  </section>}
  <h3>👤 Producción personal</h3>
  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
