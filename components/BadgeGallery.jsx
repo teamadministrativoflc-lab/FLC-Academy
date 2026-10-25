@@ -71,9 +71,9 @@ function BadgeGallery({user,setPage}) {
  const formatGoal=r=>r.metric==='submitted_policies'?Number(r.target_value).toLocaleString('es-US')+' pólizas':Number(r.target_value).toLocaleString('en-US',{style:'currency',currency:'USD'});
  const formatMetric=r=>({verified_ap:'AP Issue Paid verificada',submitted_ap:'AP sometida',submitted_policies:'Pólizas sometidas'})[r.metric]||'Producción';
  const challengeText=r=>['🏆🎉 *¡CAMPEÓN FLC!*','','⭐ *'+sender+'*','🏅 *Reto completado:* '+r.challenge_title,
-  '🎯 *Meta:* '+formatGoal(r)+' · '+formatMetric(r),'','💚 ¡Seguimos construyendo legados!'].join('\\n');
+  '🎯 *Meta:* '+formatGoal(r)+' · '+formatMetric(r),'','💚 ¡Seguimos construyendo legados!'].join('\n');
  const challengePlain=r=>['*CAMPEON FLC*','','*Participante:* '+sender,'*Reto completado:* '+r.challenge_title,
-  '*Meta:* '+formatGoal(r)+' - '+formatMetric(r),'','Felicidades! Seguimos construyendo legados!'].join('\\n');
+  '*Meta:* '+formatGoal(r)+' - '+formatMetric(r),'','Felicidades! Seguimos construyendo legados!'].join('\n');
  const challengeCopy=async r=>{try{await navigator.clipboard.writeText(challengeText(r));setMessage('✅ Reconocimiento del reto copiado con emojis.');}
   catch(e){setMessage('No se pudo copiar el reconocimiento.');}};
  const challengeShare=r=>window.open('https://wa.me/?text='+encodeURIComponent(challengePlain(r)),'_blank','noopener,noreferrer');
