@@ -11,6 +11,10 @@ function ChallengeCenter({user,setPage,isLeader}) {
  const [leaderboard,setLeaderboard]=React.useState([]);
  const [rewards,setRewards]=React.useState([]);
  const [rewardNotice,setRewardNotice]=React.useState('');
+ const [hall,setHall]=React.useState([]);
+ const [hallError,setHallError]=React.useState('');
+ const [closing,setClosing]=React.useState(null);
+ const [hallDemo,setHallDemo]=React.useState(false);
  const [loading,setLoading]=React.useState(true);
  const [scoreLoading,setScoreLoading]=React.useState(false);
  const [saving,setSaving]=React.useState(false);
@@ -29,6 +33,12 @@ function ChallengeCenter({user,setPage,isLeader}) {
   setLoading(false);
  },[]);
  React.useEffect(()=>{load();},[load]);
+ const loadHall=React.useCallback(async()=>{
+  const {data,error}=await window.flcSupabase.rpc('flc_challenge_hall_of_fame');
+  if(error){setHall([]);setHallError('El historial estará disponible después de ejecutar SQL 032.');}
+  else{setHall(data||[]);setHallError('');}
+ },[]);
+ React.useEffect(()=>{loadHall();},[loadHall]);
  const loadScores=React.useCallback(async()=>{
   if(!selected){setLeaderboard([]);setRewards([]);return;}
   setScoreLoading(true);
@@ -88,6 +98,17 @@ function ChallengeCenter({user,setPage,isLeader}) {
   if(error)setError('No se pudo archivar: '+error.message);
   else{setNotice('✅ Reto archivado. No se eliminó el historial.');await load();}
  };
+ const finalize=async c=>{
+  if(!window.confirm('¿Cerrar definitivamente el podio de «'+c.title+'»? Los resultados quedarán guardados como historial y no cambiarán después. Confirma que administración ya verificó la producción.'))return;
+  setClosing(c.id);setHallError('');
+  const {data,error}=await window.flcSupabase.rpc('flc_finalize_challenge_podium',{p_challenge_id:c.id});
+  setClosing(null);
+  if(error){setHallError('No se pudo cerrar el podio: '+error.message);return;}
+  setNotice(data>0?'✅ Podio histórico guardado sin alterar pólizas.':'El podio ya estaba guardado. No se duplicó.');
+  await loadHall();
+ };
+ const finalIds=new Set(hall.map(x=>x.challenge_id));
+ const demoHall=hallDemo?[{challenge_id:'ejemplo',challenge_title:'Reto de ejemplo (NO PUBLICADO)',starts_on:today,ends_on:today,participant_scope:'individual',metric:'verified_ap',place:1,participant_name:'Agente de ejemplo',metric_value:10000,target_value:10000,finalized_at:new Date().toISOString(),isDemo:true},...hall]:hall;
  const summaryStyle={fontSize:13,color:'#667666'};
  return <section data-screen-label="FLC Gamification Center Retos" style={{maxWidth:1200}}>
   <button type="button" onClick={()=>setPage('dashboard')} style={{color:'#38602a',marginBottom:12}}>← Volver al inicio</button>
@@ -133,6 +154,8 @@ function ChallengeCenter({user,setPage,isLeader}) {
      <button onClick={()=>setSelected(c.id)} style={{padding:'7px 12px',background:'#e4f0d7',borderRadius:7}}>🏆 Ver marcador</button>
      {owns(c)&&<button onClick={()=>edit(c)} style={{padding:'7px 12px',background:'#f3e8c8',borderRadius:7}}>Editar</button>}
      {owns(c)&&c.status!=='archived'&&<button onClick={()=>archive(c)} disabled={saving} style={{padding:'7px 12px',background:'#f6eded',borderRadius:7}}>Archivar</button>}
+     {owns(c)&&c.status==='active'&&today>c.ends_on&&!finalIds.has(c.id)&&<button onClick={()=>finalize(c)} disabled={closing===c.id} style={{padding:'7px 12px',background:'#faedce',borderRadius:7}}>{closing===c.id?'Cerrando…':'🏆 Cerrar podio histórico'}</button>}
+     {finalIds.has(c.id)&&<span style={{fontSize:12,color:'#55763d',alignSelf:'center'}}>✅ Podio guardado</span>}
     </div>
    </div>)}
   </div>}
@@ -156,5 +179,22 @@ function ChallengeCenter({user,setPage,isLeader}) {
    {rewards.length>0&&<p style={{fontSize:13,color:'#496a32',marginTop:12}}>🏅 {rewards.length} recompensa{rewards.length===1?'':'s'} de meta registrada{rewards.length===1?'':'s'} en este reto.</p>}
    <p style={{...summaryStyle,marginTop:18}}>Solo se muestran métricas de producción; no se exponen datos de clientes ni pólizas individuales.</p>
   </section>}
+  <section className="card" style={{marginTop:24,padding:20}} aria-label="Salón de Campeones FLC">
+   <h2 style={{marginTop:0,color:'#214a2b'}}>👑 Salón de Campeones</h2>
+   <p style={summaryStyle}>Podios definitivos de retos terminados y cerrados por administración o el líder responsable. Los resultados históricos no se recalculan.</p>
+   {isAdmin&&<button type="button" onClick={()=>setHallDemo(v=>!v)} style={{padding:'8px 12px',background:'#fff3d0',borderRadius:7,marginBottom:14}}>{hallDemo?'Ocultar ejemplo':'Ver ejemplo sin publicar'}</button>}
+   {hallError&&<p role="status" style={{fontSize:13,color:'#926224'}}>{hallError}</p>}
+   {!demoHall.length&&!hallError&&<p>Aún no hay podios finalizados. Los retos deben terminar antes de guardar sus campeones.</p>}
+   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:12}}>
+    {demoHall.map(h=><article key={h.challenge_id+'-'+h.place} style={{border:'1px solid #dec98a',borderRadius:10,padding:14,background:'#fffdf3'}}>
+     {h.isDemo&&<strong style={{fontSize:12,color:'#a35a14'}}>EJEMPLO · NO PUBLICADO</strong>}
+     <div style={{fontSize:22}}>{h.place===1?'🥇':h.place===2?'🥈':'🥉'}</div>
+     <strong style={{fontSize:16,color:'#214c31'}}>{h.participant_name}</strong>
+     <div style={{fontSize:13,color:'#5b6d54',marginTop:4}}>{h.challenge_title}</div>
+     <div style={{fontSize:13,fontWeight:700,marginTop:8}}>{fmt(h.metric_value,h.metric)}</div>
+     <div style={{fontSize:12,color:'#6a7767'}}>Finalizó: {h.ends_on}</div>
+    </article>)}
+   </div>
+  </section>
  </section>;
 }
