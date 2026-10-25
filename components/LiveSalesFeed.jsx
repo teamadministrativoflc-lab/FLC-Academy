@@ -10,7 +10,7 @@ function LiveSalesFeed({user}) {
  React.useEffect(()=>{openRef.current=open;if(open)setUnread(0);},[open]);
  const load=React.useCallback(async()=>{
   const {data,error}=await window.flcSupabase.from('flc_sale_announcements')
-   .select('policy_id,principal_name,client_name,possible_duplicate,first_reporter_name,first_reported_at,carrier,product_type,total_ap,status,participants,announced_at')
+   .select('policy_id,principal_name,client_name,carrier,product_type,total_ap,status,participants,announced_at')
    .order('announced_at',{ascending:false}).limit(30);
   if(error){setError('No se pudo cargar Ventas en Vivo. Revisa SQL 021.');return;}
   setError('');const incoming=data||[];
@@ -51,7 +51,7 @@ function LiveSalesFeed({user}) {
    '📄 Producto: '+r.product_type,
    '💰 AP total: '+money(r.total_ap),
    '📋 Estado: Sometida',
-   ...(r.possible_duplicate?['⚠️ POSIBLE DUPLICADO: primer reporte de '+r.first_reporter_name+' ('+new Date(r.first_reported_at).toLocaleString('es-US',{timeZone:'America/New_York'})+'). Revisar con Administración.']:[]),'',
+   '',
    '💪🔥 ¡Felicidades '+(ps.length>1?ps.map(p=>p.name.split(' ')[0]).join(' y '):r.principal_name.split(' ')[0])+'! ¡Seguimos construyendo legados!'].join('\n');
  };
  const copy=async r=>{try{await navigator.clipboard.writeText(message(r));setError('✓ Mensaje copiado para compartir.');}catch(e){setError('No se pudo copiar. Usa Compartir por WhatsApp.');}};
@@ -74,7 +74,6 @@ function LiveSalesFeed({user}) {
       <div>📄 Producto: <b>{r.product_type}</b></div>
       <div>💰 AP total: <b>{money(r.total_ap)}</b></div>
       <div>📋 Estado al reportar: <b>Sometida</b></div>
-      {r.possible_duplicate&&<div style={{border:'1px solid #e1a15b',borderRadius:8,padding:8,background:'#fff5e7',color:'#90491b',lineHeight:1.5,marginTop:8}}>⚠️ <b>Posible cliente duplicado.</b> Primer reporte: {r.first_reporter_name} · {r.first_reported_at&&new Date(r.first_reported_at).toLocaleString('es-US',{timeZone:'America/New_York'})}. Verificar con Administración antes de determinar a quién corresponde la venta.</div>}
      </div>
      <p style={{fontWeight:700,margin:'10px 0'}}>💪🔥 ¡Felicidades por esta venta!</p>
      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button type="button" onClick={()=>copy(r)} style={{background:'#fff',border:'1px solid #a6cbb0',borderRadius:7,padding:'7px 9px',fontSize:12}}>📋 Copiar mensaje</button><button type="button" onClick={()=>whatsApp(r)} style={{background:'#1b834c',color:'#fff',borderRadius:7,padding:'7px 9px',fontSize:12}}>📲 Compartir por WhatsApp</button></div>
