@@ -57,6 +57,12 @@ function ProductionCenter({user,setPage}) {
  const [apCorrections,setApCorrections]=React.useState([]);
  const [apCorrectionsLoadError,setApCorrectionsLoadError]=React.useState('');
  const [approvalFilter,setApprovalFilter]=React.useState('pending');
+ const [approvalDemoOpen,setApprovalDemoOpen]=React.useState(false);
+ const [approvalDemoStep,setApprovalDemoStep]=React.useState(0);
+ const [approvalDemoAp,setApprovalDemoAp]=React.useState('2100');
+ const [approvalDemoReason,setApprovalDemoReason]=React.useState('El cliente solicitó reducir la prima anual.');
+ const [approvalDemoError,setApprovalDemoError]=React.useState('');
+ const resetApprovalDemo=()=>{setApprovalDemoStep(0);setApprovalDemoAp('2100');setApprovalDemoReason('El cliente solicitó reducir la prima anual.');setApprovalDemoError('');};
  const [apSaving,setApSaving]=React.useState(false);
  const [historyPolicy,setHistoryPolicy]=React.useState(null);
  const [historyRows,setHistoryRows]=React.useState([]);
@@ -645,6 +651,38 @@ function ProductionCenter({user,setPage}) {
    <button type="button" aria-pressed={approvalFilter==='pending'} onClick={()=>setApprovalFilter('pending')} style={{padding:'10px 13px',borderRadius:8,background:approvalFilter==='pending'?'#176b3b':'#eff4ed',color:approvalFilter==='pending'?'white':'#1b5130',fontWeight:700}}>Pendientes ({apCorrections.filter(x=>x.state==='pending').length})</button>
    <button type="button" aria-pressed={approvalFilter==='history'} onClick={()=>setApprovalFilter('history')} style={{padding:'10px 13px',borderRadius:8,background:approvalFilter==='history'?'#176b3b':'#eff4ed',color:approvalFilter==='history'?'white':'#1b5130',fontWeight:700}}>Historial ({apCorrections.filter(x=>x.state!=='pending').length})</button>
    <button type="button" disabled={busy||apSaving} onClick={load} style={{padding:'10px 13px',borderRadius:8,border:'1px solid #a9c2aa'}}>↻ Actualizar solicitudes</button>
+  </div>
+  <div style={{margin:'18px 0',padding:16,border:'2px dashed #a5bf9f',borderRadius:11,background:'#f5faf2'}}>
+   <div style={{display:'flex',gap:10,justifyContent:'space-between',alignItems:'center',flexWrap:'wrap'}}>
+    <div><strong>🧪 Simulación del proceso de aprobación</strong><p style={{fontSize:12,margin:'4px 0',color:'#556b55'}}>DEMOSTRACIÓN — datos ficticios en memoria. No registra pólizas, no envía solicitudes y no modifica Supabase, rankings ni títulos.</p></div>
+    <button type="button" onClick={()=>{setApprovalDemoOpen(v=>!v);resetApprovalDemo();}} style={{background:'#134b2a',color:'#fff',padding:'9px 13px',borderRadius:8,fontWeight:700}}>{approvalDemoOpen?'Cerrar simulación':'Iniciar simulación'}</button>
+   </div>
+   {approvalDemoOpen&&<div style={{marginTop:14,padding:14,background:'#fff',border:'1px solid #c9ddc5',borderRadius:9}}>
+    <p style={{fontSize:12,fontWeight:700,color:'#6c713f',marginTop:0}}>CASO FICTICIO · Agente de prueba · Póliza DEMO-001 · AP original verificada: {fmt(2400)}</p>
+    {approvalDemoStep===0&&<div>
+     <h3 style={{margin:'10px 0'}}>1. Vista del agente: solicitar corrección</h3>
+     <label style={{display:'block',marginBottom:10}}>Nuevo AP ficticio <input type="number" min="0.01" step="0.01" value={approvalDemoAp} onChange={e=>setApprovalDemoAp(e.target.value)} style={{marginLeft:8,padding:9,border:'1px solid #b8cdb8',borderRadius:7,maxWidth:'100%'}}/></label>
+     <label style={{display:'block',marginBottom:10}}>Motivo ficticio <textarea maxLength={500} rows={2} value={approvalDemoReason} onChange={e=>setApprovalDemoReason(e.target.value)} style={{display:'block',width:'100%',maxWidth:500,padding:9,border:'1px solid #b8cdb8',borderRadius:7}}/></label>
+     {approvalDemoError&&<p role="alert" style={{color:'#a12d28'}}>{approvalDemoError}</p>}
+     <button type="button" onClick={()=>{const amount=Number(approvalDemoAp);if(!Number.isFinite(amount)||amount<=0||amount===2400||!approvalDemoReason.trim()){setApprovalDemoError('Indica un AP distinto de $2,400 y un motivo.');return;}setApprovalDemoError('');setApprovalDemoStep(1);}} style={{padding:'10px 14px',background:'#176b3b',color:'#fff',borderRadius:8,fontWeight:700}}>Simular envío de solicitud</button>
+    </div>}
+    {approvalDemoStep===1&&<div>
+     <h3>2. Vista de Administración: solicitud pendiente</h3>
+     <p><strong>Agente de prueba</strong> solicita cambiar AP de {fmt(2400)} a <strong>{fmt(Number(approvalDemoAp))}</strong>.</p>
+     <p>Motivo: {approvalDemoReason}</p>
+     <p style={{color:'#995b12',fontWeight:700}}>Estado: Pendiente. AP Issue Paid verificada continúa en {fmt(2400)}.</p>
+     <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button type="button" onClick={()=>setApprovalDemoStep(2)} style={{background:'#176b3b',color:'#fff',padding:'10px 14px',borderRadius:8}}>Simular aprobación</button><button type="button" onClick={()=>setApprovalDemoStep(4)} style={{background:'#f8eeee',color:'#8a3333',border:'1px solid #d6b3b3',padding:'10px 14px',borderRadius:8}}>Simular rechazo</button></div>
+    </div>}
+    {approvalDemoStep===2&&<div>
+     <h3>3. Corrección aprobada: verificación retirada</h3>
+     <p>AP corregida ficticia: <strong>{fmt(Number(approvalDemoAp))}</strong>. La verificación Issue Paid anterior queda retirada hasta una nueva comprobación por Administración.</p>
+     <p style={{color:'#9b5a19',fontWeight:700}}>AP Issue Paid verificada ficticia: {fmt(0)} hasta su nueva verificación.</p>
+     <button type="button" onClick={()=>setApprovalDemoStep(3)} style={{background:'#176b3b',color:'#fff',padding:'10px 14px',borderRadius:8}}>Simular nueva verificación Issue Paid</button>
+    </div>}
+    {approvalDemoStep===3&&<div role="status"><h3>4. AP corregida y verificada</h3><p style={{color:'#176b3b',fontWeight:700}}>El AP ficticio {fmt(Number(approvalDemoAp))} vuelve a contar como Issue Paid verificada y actualizaría los rankings según el split.</p></div>}
+    {approvalDemoStep===4&&<div role="status"><h3>3. Solicitud rechazada</h3><p style={{color:'#8a3333',fontWeight:700}}>Se conserva el AP original {fmt(2400)} y su verificación. El rechazo quedaría reflejado en el historial real.</p></div>}
+    <button type="button" onClick={resetApprovalDemo} style={{marginTop:15,padding:'8px 12px',border:'1px solid #a9c2aa',borderRadius:8}}>↻ Reiniciar simulación</button>
+   </div>}
   </div>
   {apCorrectionsLoadError&&<p role="alert" style={{color:'#a12d28',fontWeight:700}}>{apCorrectionsLoadError}</p>}
   {error&&<p role="alert" style={{color:'#a12d28'}}>{error}</p>}
