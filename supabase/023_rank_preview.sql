@@ -17,14 +17,15 @@ CREATE POLICY flc_rank_profiles_read ON public.flc_rank_profiles FOR SELECT TO a
  USING (public.flc_is_admin() OR agent_id=auth.uid());
 
 -- Baseline de VP confirmado por Efraysa Ramos.
--- Se aplica solamente si hay UNA cuenta de administración con ese nombre.
+-- Se aplica solamente si hay UN perfil de agente con ese nombre exacto.
+-- La cuenta administrativa de FLC puede ser distinta de la cuenta de Efraysa.
 -- No sobreescribe ningún título existente.
 INSERT INTO public.flc_rank_profiles(agent_id,current_rank,assigned_at,assignment_reason)
 SELECT p.id,'VP',now(),'VP inicial confirmado por la CEO'
 FROM public.agent_profiles p
-WHERE lower(btrim(p.full_name))='efraysa ramos' AND p.role='admin'
+WHERE lower(btrim(p.full_name))='efraysa ramos'
  AND (SELECT count(*) FROM public.agent_profiles z
-      WHERE lower(btrim(z.full_name))='efraysa ramos' AND z.role='admin')=1
+      WHERE lower(btrim(z.full_name))='efraysa ramos')=1
 ON CONFLICT(agent_id) DO NOTHING;
 
 -- Reporte mensual: la producción total incluye la personal, pero nunca duplica
@@ -40,8 +41,8 @@ AS $$
 WITH RECURSIVE subjects AS (
  SELECT l.agent_id AS id FROM public.flc_team_leaders l
  UNION
- SELECT p.id FROM public.agent_profiles p WHERE p.role='admin'
-  AND lower(btrim(p.full_name))='efraysa ramos'
+ SELECT p.id FROM public.agent_profiles p
+  WHERE lower(btrim(p.full_name))='efraysa ramos'
 ),
 structure AS (
  SELECT s.id AS root_id,s.id AS member_id,NULL::uuid AS leg_id,
