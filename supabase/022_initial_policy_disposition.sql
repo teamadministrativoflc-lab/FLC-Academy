@@ -1,5 +1,6 @@
 -- SQL 022 · Estado inicial seleccionable para nuevas pólizas.
--- Ejecutar UNA VEZ en Supabase SQL Editor antes de probar Preview.
+-- Ejecutar en Supabase SQL Editor antes de probar Preview; se puede repetir
+-- con CREATE OR REPLACE si ya se ejecutó una versión anterior.
 -- No cambia pólizas anteriores, splits ni verificación de Issue Paid.
 -- Se llama solamente después de que el RPC de creación devuelve el ID real.
 CREATE OR REPLACE FUNCTION public.flc_set_initial_policy_disposition(
@@ -15,12 +16,11 @@ BEGIN
  IF auth.uid() IS NULL THEN
   RAISE EXCEPTION 'Authentication required';
  END IF;
- IF p_disposition NOT IN ('Sometida','Aprobada en pantalla','Enviada a underwriting') THEN
+ IF p_disposition NOT IN ('Sometida','Aprobada en pantalla') THEN
   RAISE EXCEPTION 'Invalid initial policy disposition';
  END IF;
  v_status := CASE p_disposition
   WHEN 'Aprobada en pantalla' THEN 'Aprobada'
-  WHEN 'Enviada a underwriting' THEN 'En revisión'
   ELSE 'Sometida'
  END;
  v_label := p_disposition;
