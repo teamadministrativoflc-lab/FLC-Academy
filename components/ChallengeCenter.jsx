@@ -9,6 +9,8 @@ function ChallengeCenter({user,setPage,isLeader}) {
  const [rows,setRows]=React.useState([]);
  const [selected,setSelected]=React.useState(null);
  const [leaderboard,setLeaderboard]=React.useState([]);
+ const [rewards,setRewards]=React.useState([]);
+ const [rewardNotice,setRewardNotice]=React.useState('');
  const [loading,setLoading]=React.useState(true);
  const [scoreLoading,setScoreLoading]=React.useState(false);
  const [saving,setSaving]=React.useState(false);
@@ -28,11 +30,20 @@ function ChallengeCenter({user,setPage,isLeader}) {
  },[]);
  React.useEffect(()=>{load();},[load]);
  const loadScores=React.useCallback(async()=>{
-  if(!selected){setLeaderboard([]);return;}
+  if(!selected){setLeaderboard([]);setRewards([]);return;}
   setScoreLoading(true);
+  // La base de datos calcula y registra cada meta una sola vez.
+  // Si SQL 030 aún no está ejecutado, el marcador normal sigue disponible.
+  const reconciliation=await window.flcSupabase.rpc('flc_reconcile_challenge_rewards',{p_challenge_id:selected});
   const {data,error}=await window.flcSupabase.rpc('flc_challenge_leaderboard',{p_challenge_id:selected});
   if(error){setError('No se pudo cargar el marcador: '+error.message);setLeaderboard([]);}
   else{setLeaderboard(data||[]);setError('');}
+  if(reconciliation.error){setRewards([]);setRewardNotice('Las recompensas estarán disponibles al ejecutar SQL 030.');}
+  else{
+   const results=await window.flcSupabase.rpc('flc_challenge_rewards_for',{p_challenge_id:selected});
+   if(results.error){setRewards([]);setRewardNotice('No se pudieron cargar las recompensas.');}
+   else{setRewards(results.data||[]);setRewardNotice('');}
+  }
   setScoreLoading(false);
  },[selected]);
  React.useEffect(()=>{loadScores();const timer=setInterval(loadScores,30000);return()=>clearInterval(timer);},[loadScores]);
@@ -129,17 +140,20 @@ function ChallengeCenter({user,setPage,isLeader}) {
    <h2 style={{margin:'0 0 4px'}}>🏆 Marcador · {current.title}</h2>
    <p style={summaryStyle}>{scopes[current.participant_scope]} · {metrics[current.metric]} · Meta {fmt(current.target,current.metric)}</p>
    <p style={summaryStyle}>Actualización automática cada 30 segundos. Los empates muestran primero el registro más temprano.</p>
+   <p style={{...summaryStyle,color:'#376b38'}}>🏅 Alcanzar el 100 % de la meta de un reto activo registra una recompensa única por participante, sin duplicados. Los retos en borrador no entregan recompensas.</p>
+   {rewardNotice&&<p style={{fontSize:12,color:'#876318'}}>{rewardNotice}</p>}
    {scoreLoading?<p>Calculando resultados…</p>:leaderboard.length===0?<p>Aún no hay producción en este reto.</p>:
    <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}>
     <thead><tr style={{textAlign:'left',borderBottom:'1px solid #c9d6c8'}}><th style={{padding:8}}>Lugar</th><th style={{padding:8}}>{current.participant_scope==='team'?'Equipo':'Agente'}</th><th style={{padding:8}}>Progreso</th><th style={{padding:8}}>Meta</th><th style={{padding:8}}>Completado</th></tr></thead>
     <tbody>{leaderboard.map((a,i)=><tr key={a.participant_id} style={{borderBottom:'1px solid #e8eee3',background:i<3?'#fffdf2':'transparent'}}>
      <td style={{padding:9,fontWeight:700}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':a.place}</td>
-     <td style={{padding:9}}>{a.participant_name}</td>
+     <td style={{padding:9}}>{a.participant_name}{rewards.some(r=>r.participant_id===a.participant_id)&&<span style={{display:'inline-block',marginLeft:8,color:'#855e14',fontWeight:700,fontSize:12}}>🏅 Meta lograda</span>}</td>
      <td style={{padding:9,fontWeight:700}}>{fmt(a.metric_value,current.metric)}</td>
      <td style={{padding:9}}>{fmt(a.target_value,current.metric)}</td>
      <td style={{padding:9,minWidth:120}}><div style={{height:8,borderRadius:6,background:'#e9efe3',overflow:'hidden'}}><div style={{height:'100%',width:Math.min(100,Number(a.progress_pct))+'%',background:'#75ab35'}} /></div><span style={{fontSize:12}}>{Number(a.progress_pct).toFixed(1)}%</span></td>
     </tr>)}</tbody>
    </table></div>}
+   {rewards.length>0&&<p style={{fontSize:13,color:'#496a32',marginTop:12}}>🏅 {rewards.length} recompensa{rewards.length===1?'':'s'} de meta registrada{rewards.length===1?'':'s'} en este reto.</p>}
    <p style={{...summaryStyle,marginTop:18}}>Solo se muestran métricas de producción; no se exponen datos de clientes ni pólizas individuales.</p>
   </section>}
  </section>;
