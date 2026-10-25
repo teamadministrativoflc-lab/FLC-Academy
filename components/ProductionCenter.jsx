@@ -3,6 +3,7 @@ function ProductionCenter({user,setPage}) {
  const carriers=['National Life Group','F&G','Foresters','American Amicable','Transamerica','Mutual of Omaha','Aetna','Americo','Lincoln Heritage','Occidental','Corebridge','Athene','Otro'];
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',partners:[],primaryPct:'100',date:new Date().toISOString().slice(0,10),primary:'',initialDisposition:'Sometida'});
+ const [uplineGoal,setUplineGoal]=React.useState('1000000');
  const [periodType,setPeriodType]=React.useState('month');
  const [periodDate,setPeriodDate]=React.useState(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()));
  const anchor=new Date(periodDate+'T12:00:00Z');
@@ -249,6 +250,28 @@ function ProductionCenter({user,setPage}) {
  // Work in cents to avoid floating-point awards at the $100 boundary.
  const legacyPoints=ap=>Math.floor(Math.max(0,Math.round(Number(ap||0)*100))/10000);
  const fmt=x=>Number(x).toLocaleString('en-US',{style:'currency',currency:'USD'});
+ const printUplineReport=()=>{
+  if(user.role!=='admin'||structureFilter||!agencyTotals||periodTeamError)return;
+  const goal=Number(uplineGoal);
+  if(!Number.isFinite(goal)||goal<=0){setError('Introduce una meta de AP sometida mayor que cero antes de descargar el reporte.');return;}
+  const safe=v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const reportAP=Number(agencyTotals.submitted_ap||0);
+  const percent=reportAP/goal*100;
+  const agentLines=agentBreakdown.filter(a=>a.ap>0).sort((a,b)=>b.ap-a.ap).slice(0,10).map((a,i)=>'<tr><td>'+(i+1)+'</td><td>'+safe(a.name||'Agente')+'</td><td>'+Number(a.submitted)+'</td><td>'+safe(fmt(a.ap))+'</td></tr>').join('');
+  const teamLines=periodTeams.filter(t=>t.scope==='team'&&Number(t.depth)===1).sort((a,b)=>Number(b.submitted_ap)-Number(a.submitted_ap)).slice(0,10).map((t,i)=>'<tr><td>'+(i+1)+'</td><td>'+safe(t.leader_name)+'</td><td>'+Number(t.submitting_agents||0)+'</td><td>'+safe(fmt(t.submitted_ap))+'</td></tr>').join('');
+  const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte FLC - ${safe(rangeLabel)}</title>
+  <style>body{font:15px Arial,sans-serif;color:#122116;max-width:850px;margin:35px auto;padding:0 24px}h1{font-size:26px}h2{font-size:18px;margin-top:28px}header{border-bottom:5px solid #12763f;padding-bottom:16px}.muted{color:#5a685e}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.card{border:1px solid #cfe0d1;border-radius:10px;padding:16px}.card strong{font-size:24px;display:block;margin-top:8px}.progress{height:22px;background:#e7eee6;border-radius:20px;overflow:hidden}.progress span{display:block;height:100%;background:#12a35a}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left}th{background:#edf5ed}.note{font-size:12px;color:#647169;margin-top:20px}.print{background:#126c3a;color:white;border:0;border-radius:8px;padding:12px 20px;cursor:pointer;margin-bottom:20px}@media print{body{margin:12mm auto}.print{display:none}@page{size:letter;margin:12mm}}</style>
+  </head><body><button class="print" onclick="window.print()">Imprimir o guardar como PDF</button><header><div class="muted">FUTURE LEGACY CREATORS</div><h1>Reporte ejecutivo de AP sometida</h1><div class="muted">Período: ${safe(rangeLabel)} · Compañía: ${safe(carrierFilter||'Todas')}</div></header>
+  <h2>Cumplimiento de la meta</h2><div class="grid"><div class="card">AP sometida<strong>${safe(fmt(reportAP))}</strong></div><div class="card">Meta de AP sometida<strong>${safe(fmt(goal))}</strong></div></div>
+  <p><strong>${percent.toFixed(1)} %</strong> de cumplimiento</p><div class="progress"><span style="width:${Math.min(100,Math.max(0,percent))}%"></span></div>
+  <div class="grid" style="margin-top:18px"><div class="card">Pólizas sometidas<strong>${Number(agencyTotals.submitted_policies)}</strong></div><div class="card">Agentes que sometieron<strong>${Number(agencyTotals.submitting_agents)}</strong></div><div class="card">Promedio de AP por agente productor<strong>${safe(fmt(Number(agencyTotals.submitting_agents)?reportAP/Number(agencyTotals.submitting_agents):0))}</strong></div><div class="card">AP pendiente para alcanzar la meta<strong>${safe(fmt(Math.max(0,goal-reportAP)))}</strong></div></div>
+  <h2>Ranking de agentes · AP sometida acreditada</h2><table><thead><tr><th>#</th><th>Agente</th><th>Pólizas</th><th>AP acreditada</th></tr></thead><tbody>${agentLines||'<tr><td colspan="4">Sin producción registrada.</td></tr>'}</tbody></table>
+  <h2>Ranking de equipos directos · AP sometida</h2><table><thead><tr><th>#</th><th>Líder</th><th>Agentes productores</th><th>AP de equipo</th></tr></thead><tbody>${teamLines||'<tr><td colspan="4">Sin equipos con producción.</td></tr>'}</tbody></table>
+  <p class="note">Cifras de AP sometida, no Issue Paid. Los porcentajes de split acreditan AP a cada participante sin duplicar la prima total. Los equipos incluyen sus estructuras y no deben sumarse a los totales de agencia. Reporte generado desde FLC Academy.</p></body></html>`;
+  const w=window.open('','_blank');
+  if(!w){setError('El navegador bloqueó la ventana del reporte. Permite ventanas emergentes para FLC Academy.');return;}
+  w.document.open();w.document.write(html);w.document.close();w.focus();
+ };
  const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
  const inp={padding:10,border:'1px solid #ccd8cd',borderRadius:7,width:'100%',fontSize:14,background:'#fff'};
@@ -341,6 +364,17 @@ function ProductionCenter({user,setPage}) {
    <p style={{fontSize:12,color:'#516552'}}>La AP sometida usa fecha de sometimiento y la AP verificada usa fecha de Issue Paid; pueden ser pólizas distintas en este período. La efectividad real de conversión por cohorte se consulta en su ranking, no dividiendo estos dos montos.</p>
    <p style={{fontSize:13}}><strong>Inversión por proveedor:</strong> {[...new Set(scopedLeads.map(l=>l.provider))].sort().map(provider=>provider+' ('+fmt(scopedLeads.filter(l=>l.provider===provider).reduce((n,l)=>n+Number(l.amount),0))+')').join(' · ')||'Sin registros para este período'}</p>
   </React.Fragment>:<p>Cargando totales de agencia…</p>}
+ </section>}
+ {user.role==='admin'&&!structureFilter&&<section style={{margin:'18px 0',padding:18,background:'#fff',border:'1px solid #b7cdb8',borderRadius:12}}>
+  <h3 style={{marginTop:0}}>📤 Reporte ejecutivo para tu upline</h3>
+  <p style={{fontSize:13,color:'#506a56'}}>Basado exclusivamente en AP sometida de {rangeLabel}. Incluye porcentaje de meta, pólizas, agentes productores y Top 10 de agentes y equipos; no muestra clientes ni números de póliza.</p>
+  <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'end'}}>
+   <label style={{display:'flex',flexDirection:'column',gap:6,fontWeight:600}}>Meta de AP sometida (USD)
+    <input type="number" min="1" step="0.01" value={uplineGoal} onChange={e=>setUplineGoal(e.target.value)} style={{padding:10,border:'1px solid #bfd2c0',borderRadius:7,width:220}}/>
+   </label>
+   <button type="button" onClick={printUplineReport} disabled={!agencyTotals||!!periodTeamError} style={{padding:'11px 18px',border:0,borderRadius:8,background:'#126b3b',color:'#fff',fontWeight:700,cursor:'pointer'}}>Vista previa / Guardar PDF</button>
+  </div>
+  <p style={{fontSize:12,color:'#657665'}}>La meta se puede modificar para cada reporte; el PDF se guarda desde la opción Imprimir del navegador. No se comparte automáticamente con terceros.</p>
  </section>}
  <h3>👤 Producción personal</h3>
  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}}>
