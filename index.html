@@ -368,6 +368,76 @@
 
   /* Screen label helper */
   [data-screen-label] { min-height: 100%; }
+
+  /* Mobile-first shell improvements: keep content visible in portrait and landscape. */
+  .mobile-menu-button, .mobile-sidebar-close, .mobile-menu-backdrop { display: none; }
+  @media (max-width: 1024px) {
+    html, body, #root { width: 100%; max-width: 100%; overflow-x: hidden; }
+    .app { display: block; width: 100%; min-width: 0; }
+    .sidebar {
+      position: fixed; top: 0; bottom: 0; left: 0; z-index: 2002;
+      width: min(320px, 84vw); max-width: 84vw; height: 100dvh;
+      transform: translateX(-105%); transition: transform .2s ease;
+      box-shadow: 8px 0 28px rgba(0,0,0,.2);
+    }
+    .sidebar.mobile-open { transform: translateX(0); }
+    .mobile-menu-backdrop {
+      display: block; position: fixed; inset: 0; z-index: 2001;
+      width: 100%; height: 100dvh; background: rgba(0,0,0,.52); border: 0;
+    }
+    .mobile-menu-button {
+      display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px;
+      border: 1px solid #b6cdb6; border-radius: 9px; background: #fff;
+      color: #124c2c; font-size: 15px; font-weight: 700;
+    }
+    .mobile-sidebar-close {
+      display: block; align-self: flex-end; color: #e5f0df; font-size: 32px;
+      padding: 0 8px; line-height: 1.1; margin-bottom: 3px;
+    }
+    .main { padding: 14px 14px 100px; width: 100%; max-width: 100%; min-width: 0; overflow-x: clip; }
+    .topbar { margin-bottom: 18px; gap: 12px; }
+    .main > * { min-width: 0; max-width: 100%; }
+    .main h1:not(.page-title) { font-size: clamp(28px, 5vw, 40px); line-height: 1.14; overflow-wrap: anywhere; }
+    .production-center { padding: 4px !important; max-width: 100% !important; }
+    .production-center nav[aria-label="Secciones del Production Center"] { padding: 9px !important; gap: 7px !important; }
+    .production-center nav[aria-label="Secciones del Production Center"] button { flex: 1 1 160px; white-space: normal; }
+    .production-center > section { max-width: 100%; min-width: 0; padding: 12px !important; }
+    .production-center input, .production-center select, .production-center textarea { max-width: 100%; }
+    .production-center table { font-size: 12px !important; }
+    .flc-dashboard > div:first-child { padding: 28px 20px !important; margin-bottom: 16px !important; }
+    .flc-dashboard > div:first-child h1 { font-size: clamp(43px, 9vw, 62px) !important; }
+    .flc-dashboard > div:nth-child(2) { grid-template-columns: 1fr !important; gap: 12px !important; }
+    .flc-dashboard > div:nth-child(2) > div { padding: 17px !important; min-height: 112px !important; }
+    .login-wrap { display: block; min-height: 100dvh; }
+    .login-hero { padding: 20px 18px; min-height: 155px; }
+    .login-hero-body, .login-hero-footer { display: none; }
+    .login-form { max-width: 100%; padding: 26px 20px !important; min-height: 0; }
+    .flc-float-sales, .flc-float-ranks, .flc-float-challenges, .flc-float-position {
+      position: fixed !important; bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+      width: 48px !important; height: 48px !important; min-width: 48px !important;
+      min-height: 48px !important; padding: 0 !important; z-index: 1100 !important;
+      border-width: 2px !important; box-shadow: 0 3px 12px #0003 !important;
+    }
+    .flc-float-sales { right: 12px !important; }
+    .flc-float-ranks { right: 68px !important; }
+    .flc-float-challenges { right: 124px !important; }
+    .flc-float-position { right: 180px !important; }
+    .flc-float-position span:first-child { font-size: 15px !important; }
+    .flc-float-position span:nth-child(2) { font-size: 12px !important; }
+    .flc-float-position span:last-child { font-size: 8px !important; }
+    aside[aria-label="Posición de producción por período"] {
+      bottom: calc(70px + env(safe-area-inset-bottom)) !important;
+      right: 12px !important;
+      max-height: min(480px, calc(100dvh - 105px)) !important;
+      width: min(360px, calc(100vw - 24px)) !important;
+    }
+  }
+  @media (max-width: 420px) {
+    .main { padding: 10px 10px 100px; }
+    .production-center nav[aria-label="Secciones del Production Center"] button { flex-basis: 100%; }
+    .flc-dashboard > div:first-child h1 { font-size: 42px !important; }
+    .flc-dashboard > div:nth-child(2) > div { gap: 12px !important; }
+  }
 </style>
 </head>
 <body>
