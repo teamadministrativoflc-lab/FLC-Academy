@@ -37,7 +37,31 @@ function BadgeGallery({user,setPage}) {
   try{await navigator.clipboard.writeText(textFor(r));setMessage('✅ Mensaje con emojis copiado para WhatsApp.');}
   catch(e){setMessage('No se pudo copiar. Intenta desde un navegador con permisos de portapapeles.');}
  };
- const share=r=>window.open('https://wa.me/?text='+encodeURIComponent(textFor(r)),'_blank','noopener,noreferrer');
+ const share=async r=>{
+  // The WhatsApp URL strips some emoji sequences on certain desktop clients.
+  // Prefer the OS share sheet on supported phones; otherwise copy the exact
+  // Unicode text first and open WhatsApp for the user to paste into the group.
+  const content=textFor(r);
+  if(navigator.share){
+   try{
+    await navigator.share({text:content});
+    setMessage('✅ Compartido mediante el menú del dispositivo. Tú eliges el grupo y confirmas el envío.');
+    return;
+   }catch(e){
+    if(e.name==='AbortError')return;
+   }
+  }
+  try{
+   const clipboardWrite=navigator.clipboard.writeText(content);
+   const opened=window.open('https://web.whatsapp.com/','_blank','noopener,noreferrer');
+   await clipboardWrite;
+   setMessage(opened===null
+    ?'✅ Copiado con emojis. Abre WhatsApp y pega el mensaje en el grupo.'
+    :'✅ Copiado con emojis. En WhatsApp, elige el grupo y pega el mensaje (⌘V o Ctrl+V).');
+  }catch(e){
+   setMessage('No se pudo copiar automáticamente. Usa «Copiar con emojis» antes de abrir WhatsApp.');
+  }
+ };
  const reconcile=async()=>{
   if(user.role!=='admin')return;
   setReconciling(true);setMessage('');
@@ -77,7 +101,7 @@ function BadgeGallery({user,setPage}) {
        <div style={{marginTop:10,fontSize:12,color:'#5d684d'}}>Mes{earned.length>1?'es':''}: {earned.map(x=>month(x.period_month)).join(', ')}</div>
        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:12}}>
         <button onClick={()=>copy(earned[0])} style={{padding:'8px 10px',background:'#dcedca',borderRadius:7,fontSize:12}}>📋 Copiar con emojis</button>
-        <button onClick={()=>share(earned[0])} style={{padding:'8px 10px',background:'#1c6a40',color:'#fff',borderRadius:7,fontSize:12}}>WhatsApp</button>
+        <button onClick={()=>share(earned[0])} style={{padding:'8px 10px',background:'#1c6a40',color:'#fff',borderRadius:7,fontSize:12}}>📲 WhatsApp con emojis</button>
        </div>
       </React.Fragment>}
      </article>;
