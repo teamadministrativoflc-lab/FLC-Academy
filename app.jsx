@@ -5,6 +5,20 @@ function App() {
   const [user, setUser] = React.useState(null);
   const [authReady, setAuthReady] = React.useState(false);
   const [isLeader,setIsLeader]=React.useState(false);
+  const [rankLabel,setRankLabel]=React.useState('Cargando título…');
+  React.useEffect(()=>{
+    if(!user?.id){setRankLabel('');return;}
+    if(user.role==='admin'){setRankLabel('Administración');return;}
+    let active=true;
+    setRankLabel('Cargando título…');
+    window.flcSupabase.from('flc_rank_profiles').select('current_rank').eq('agent_id',user.id).maybeSingle().then(({data,error})=>{
+      if(!active)return;
+      if(error){setRankLabel('Título no disponible');return;}
+      const labels={SM:'Sales Manager',SSM:'Senior Sales Manager',VP:'Vice President (VP)',SVP:'Senior Vice President',EVP:'Executive Vice President',BM:'Board Member',SBM:'Senior Board Member',EBM:'Executive Board Member',CM:'Council Member',SCM:'Senior Council Member',ECM:'Executive Council Member',CCM:'Chairman Council Member',SP:'Senior Partner',EP:'Executive Partner',MP:'Managing Partner'};
+      setRankLabel(data?.current_rank?(labels[data.current_rank]||data.current_rank):'Sin título');
+    });
+    return()=>{active=false;};
+  },[user?.id,user?.role]);
   React.useEffect(() => {
     let mounted = true;
     async function load(session) {
@@ -95,7 +109,7 @@ function App() {
     admin: user.role === 'admin' ? <AdminTracking setPage={setPage} /> : null,
     ceo: user.role === 'admin' ? <CeoDashboard user={user} setPage={setPage} /> : null,
     team: isLeader ? <TeamPanel setPage={setPage} user={user} /> : null,
-    dashboard: <Dashboard user={user} setPage={setPage} progress={progress} t={t} lang={lang} />,
+    dashboard: <Dashboard user={user} rankLabel={rankLabel} setPage={setPage} progress={progress} t={t} lang={lang} />,
     matcher: <Matcher t={t} lang={lang} setPage={setPage} setSelectedCompany={setSelectedCompany} />,
     companies: <Companies t={t} lang={lang} setPage={setPage} selectedCompany={selectedCompany} setSelectedCompany={setSelectedCompany} />,
     resources: <Resources t={t} lang={lang} />,
@@ -106,7 +120,7 @@ function App() {
   const navigate=next=>{setPage(next);setMobileOpen(false);};
   return (
     <div className="app">
-      <Sidebar page={page} setPage={navigate} user={user} isLeader={isLeader} mobileOpen={mobileOpen} onClose={()=>setMobileOpen(false)} onLogout={async () => {sessionStorage.removeItem('flc_login_logged_'+user.id);await window.flcSupabase.auth.signOut();setUser(null);}} t={t} lang={lang} />
+      <Sidebar page={page} setPage={navigate} user={user} rankLabel={rankLabel} isLeader={isLeader} mobileOpen={mobileOpen} onClose={()=>setMobileOpen(false)} onLogout={async () => {sessionStorage.removeItem('flc_login_logged_'+user.id);await window.flcSupabase.auth.signOut();setUser(null);}} t={t} lang={lang} />
       {mobileOpen&&<button type="button" className="mobile-menu-backdrop" aria-label="Cerrar menú" onClick={()=>setMobileOpen(false)}/>}
       <div className="main">
         <div className="topbar">
