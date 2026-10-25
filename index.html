@@ -369,6 +369,10 @@
   /* Screen label helper */
   [data-screen-label] { min-height: 100%; }
 
+  /* Desktop widgets keep their original fixed positions. */
+  .flc-mobile-dock { display: contents; }
+  .flc-mobile-dock-toggle { display: none; }
+
   /* Mobile-first shell improvements: keep content visible in portrait and landscape. */
   .mobile-menu-button, .mobile-sidebar-close, .mobile-menu-backdrop { display: none; }
   @media (max-width: 1024px) {
@@ -412,19 +416,42 @@
     .login-hero { padding: 20px 18px; min-height: 155px; }
     .login-hero-body, .login-hero-footer { display: none; }
     .login-form { max-width: 100%; padding: 26px 20px !important; min-height: 0; }
-    .flc-float-sales, .flc-float-ranks, .flc-float-challenges, .flc-float-position {
-      position: fixed !important; bottom: calc(12px + env(safe-area-inset-bottom)) !important;
-      width: 48px !important; height: 48px !important; min-width: 48px !important;
-      min-height: 48px !important; padding: 0 !important; z-index: 1100 !important;
-      border-width: 2px !important; box-shadow: 0 3px 12px #0003 !important;
+    /* Compact, collapsible mobile dock; content can scroll beneath without permanently blocking tables. */
+    .flc-mobile-dock {
+      display: flex; align-items: center; gap: 6px; position: fixed;
+      right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: 1100; padding: 6px; border-radius: 18px;
+      background: rgba(250,251,247,.96); border: 1px solid #d7e4d1;
+      box-shadow: 0 5px 22px #0003; max-width: calc(100vw - 24px);
     }
-    .flc-float-sales { right: 12px !important; }
-    .flc-float-ranks { right: 68px !important; }
-    .flc-float-challenges { right: 124px !important; }
-    .flc-float-position { right: 180px !important; }
+    .flc-mobile-dock-toggle {
+      display: inline-flex; flex-direction: column; justify-content: center;
+      align-items: center; gap: 1px; background: #123c23; color: #fff;
+      width: 48px; height: 48px; border-radius: 14px;
+      font-size: 22px; line-height: 1.1; font-weight: 700;
+    }
+    .flc-mobile-dock-toggle span { font-size: 9px; letter-spacing: .02em; }
+    .flc-mobile-dock .flc-float-sales,
+    .flc-mobile-dock .flc-float-ranks,
+    .flc-mobile-dock .flc-float-challenges,
+    .flc-mobile-dock .flc-float-position {
+      position: static !important; width: 45px !important; height: 45px !important;
+      min-width: 45px !important; min-height: 45px !important;
+      padding: 0 !important; flex-shrink: 0;
+      border-width: 2px !important; box-shadow: none !important;
+    }
+    .flc-mobile-dock:not(.dock-expanded) .flc-float-sales,
+    .flc-mobile-dock:not(.dock-expanded) .flc-float-ranks,
+    .flc-mobile-dock:not(.dock-expanded) .flc-float-challenges,
+    .flc-mobile-dock:not(.dock-expanded) .flc-float-position { display: none !important; }
     .flc-float-position span:first-child { font-size: 15px !important; }
     .flc-float-position span:nth-child(2) { font-size: 12px !important; }
     .flc-float-position span:last-child { font-size: 8px !important; }
+    .production-center .flc-policy-table-scroll {
+      width: 100%; max-width: 100%; overflow-x: auto; overflow-y: hidden;
+      -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+    }
+    .production-center .flc-policy-table-scroll table { min-width: 900px; }
     aside[aria-label="Posición de producción por período"] {
       bottom: calc(70px + env(safe-area-inset-bottom)) !important;
       right: 12px !important;
