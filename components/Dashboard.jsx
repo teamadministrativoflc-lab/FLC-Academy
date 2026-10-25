@@ -34,7 +34,7 @@ function Dashboard({ user, setPage, progress, t, lang }) {
   ];
 
   return (
-    <div data-screen-label="01 Dashboard">
+    <div data-screen-label="01 Dashboard" className="flc-dashboard">
       {/* HERO — greeting */}
       <div style={{
         background: 'linear-gradient(135deg, #050805 0%, #0f1a0f 55%, #1c2e18 100%)',
