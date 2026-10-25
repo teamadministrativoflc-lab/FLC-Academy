@@ -1,4 +1,4 @@
-function Dashboard({ user, setPage, progress, t, lang }) {
+function Dashboard({ user, rankLabel, setPage, progress, t, lang }) {
   const firstName = (user.name || '').split(' ')[0] || (lang === 'es' ? 'agente' : 'agent');
 
   const menu = [
@@ -77,6 +77,9 @@ function Dashboard({ user, setPage, progress, t, lang }) {
             {lang === 'es' ? '¡Hola,' : 'Hi,'}{' '}
             <em style={{ color: 'var(--green-soft)', fontStyle: 'italic' }}>{firstName}!</em>
           </h1>
+          <div style={{display:'inline-block',marginTop:14,padding:'6px 13px',border:'1px solid rgba(165,214,112,.5)',borderRadius:999,color:'var(--green-soft)',fontWeight:700,fontSize:13}} aria-label="Título vigente">
+            {user.role==='admin'?'Administración':(rankLabel==='Sin título'?'Sin título':rankLabel)}
+          </div>
           <p style={{
             fontSize: 18, color: 'rgba(246,247,242,.78)',
             marginTop: 16, marginBottom: 0, maxWidth: 560, lineHeight: 1.5,
