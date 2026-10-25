@@ -108,3 +108,42 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.flc_rank_review_closed_month(date,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.flc_rank_review_closed_month(date,uuid) TO authenticated;
+
+-- Prevent accidental promotions from incomplete pre-launch history.
+CREATE OR REPLACE FUNCTION public.flc_apply_rank_promotions(p_month date)
+RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $$
+DECLARE
+ rec record;
+ v_old text;
+ v_count integer:=0;
+BEGIN
+ IF NOT public.flc_is_admin() THEN RAISE EXCEPTION 'Admin only'; END IF;
+ IF p_month IS NULL THEN RAISE EXCEPTION 'Month required'; END IF;
+ -- Imported historical months lack complete Issue Paid history and cannot award new titles.
+ IF date_trunc('month',p_month)::date < DATE '2026-10-01' THEN RETURN 0; END IF;
+ PERFORM pg_advisory_xact_lock(572024);
+ FOR rec IN SELECT * FROM public.flc_rank_preview(p_month)
+ LOOP
+  INSERT INTO public.flc_rank_profiles(agent_id,current_rank)
+  VALUES(rec.agent_id,NULL) ON CONFLICT(agent_id) DO NOTHING;
+  SELECT current_rank INTO v_old
+  FROM public.flc_rank_profiles WHERE agent_id=rec.agent_id FOR UPDATE;
+  IF public.flc_rank_order(rec.candidate_rank)>public.flc_rank_order(v_old) THEN
+   UPDATE public.flc_rank_profiles SET current_rank=rec.candidate_rank,
+     assigned_at=now(),assignment_reason='Ascenso automático por Issue Paid verificada'
+   WHERE agent_id=rec.agent_id;
+   INSERT INTO public.flc_rank_history(
+    agent_id,previous_rank,new_rank,change_type,evaluation_month,
+    team_verified_ap,personal_verified_ap,outside_top_leg_ap,changed_by)
+   VALUES(rec.agent_id,v_old,rec.candidate_rank,'ascenso',date_trunc('month',p_month)::date,
+    rec.team_verified_ap,rec.personal_verified_ap,rec.outside_top_leg_ap,auth.uid());
+   v_count:=v_count+1;
+  END IF;
+ END LOOP;
+ RETURN v_count;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.flc_apply_rank_promotions(date) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.flc_apply_rank_promotions(date) TO authenticated;
+
