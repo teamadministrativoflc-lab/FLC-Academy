@@ -124,6 +124,7 @@ function App() {
 
       <LiveSalesFeed user={user} />
       <RankCelebrations user={user} />
+      <ChallengeCelebrations user={user} />
       {showWelcome && (
         <WelcomeVideo user={user} lang={lang} onClose={() => setShowWelcome(false)} />
       )}
