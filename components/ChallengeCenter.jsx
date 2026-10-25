@@ -1,5 +1,7 @@
-function ChallengeCenter({user,setPage}) {
+function ChallengeCenter({user,setPage,isLeader}) {
  const isAdmin=user.role==='admin';
+ const canManage=isAdmin||isLeader;
+ const owns=c=>isAdmin||(c.created_by===user.id&&c.owner_agent_id===user.id);
  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  const blank=()=>({id:null,title:'',description:'',participant_scope:'individual',metric:'verified_ap',target:'10000',starts_on:today,ends_on:today,status:'draft'});
  const [form,setForm]=React.useState(blank);
@@ -18,7 +20,7 @@ function ChallengeCenter({user,setPage}) {
  const fmt=(n,m)=>m==='submitted_policies'?Number(n||0).toLocaleString('es-US',{maximumFractionDigits:0}):money(n);
  const load=React.useCallback(async()=>{
   const {data,error}=await window.flcSupabase.from('flc_production_challenges')
-   .select('id,title,description,participant_scope,metric,target,starts_on,ends_on,status,created_at,updated_at')
+   .select('id,title,description,participant_scope,metric,target,starts_on,ends_on,status,created_by,owner_agent_id,created_at,updated_at')
    .order('starts_on',{ascending:false}).limit(100);
   if(error){setRows([]);setError('Retos aún no activados. Administración debe ejecutar SQL 028: '+error.message);}
   else{setRows(data||[]);setError('');setSelected(prev=>prev&&(data||[]).some(x=>x.id===prev)?prev:(data||[])[0]?.id||null);}
@@ -54,7 +56,7 @@ function ChallengeCenter({user,setPage}) {
   if(form.id&&!window.confirm('Vas a modificar un reto existente. El cambio quedará registrado y puede afectar el marcador. ¿Continuar?'))return;
   if(!form.id&&form.status==='active'&&!window.confirm('¿Activar este reto ahora? Los agentes podrán verlo inmediatamente.'))return;
   setSaving(true);
-  const {data,error}=await window.flcSupabase.rpc('flc_admin_save_challenge',{
+  const {data,error}=await window.flcSupabase.rpc(isAdmin?'flc_admin_save_challenge':'flc_leader_save_challenge',{
    p_id:form.id,p_title:form.title.trim(),p_description:form.description.trim(),
    p_scope:form.participant_scope,p_metric:form.metric,p_target:target,
    p_starts_on:form.starts_on,p_ends_on:form.ends_on,p_status:form.status
@@ -67,7 +69,7 @@ function ChallengeCenter({user,setPage}) {
  const archive=async c=>{
   if(!window.confirm('¿Archivar «'+c.title+'»? Se conservará el reto en el historial administrativo, pero dejará de ser visible a los agentes.'))return;
   setSaving(true);
-  const {error}=await window.flcSupabase.rpc('flc_admin_save_challenge',{
+  const {error}=await window.flcSupabase.rpc(isAdmin?'flc_admin_save_challenge':'flc_leader_save_challenge',{
    p_id:c.id,p_title:c.title,p_description:c.description,p_scope:c.participant_scope,
    p_metric:c.metric,p_target:c.target,p_starts_on:c.starts_on,p_ends_on:c.ends_on,p_status:'archived'
   });
@@ -80,10 +82,10 @@ function ChallengeCenter({user,setPage}) {
   <button type="button" onClick={()=>setPage('dashboard')} style={{color:'#38602a',marginBottom:12}}>← Volver al inicio</button>
   <h1 className="page-title">🚀 Retos de <em>producción</em></h1>
   <p className="page-sub">Compite con datos reales. Las metas de AP respetan los porcentajes de split; la AP Issue Paid solo cuenta después de la verificación administrativa.</p>
-  {isAdmin&&<button type="button" onClick={begin} style={{padding:'11px 18px',borderRadius:8,background:'#173c27',color:'#fff',marginBottom:18}}>＋ Crear nuevo reto</button>}
+  {canManage&&<button type="button" onClick={begin} style={{padding:'11px 18px',borderRadius:8,background:'#173c27',color:'#fff',marginBottom:18}}>＋ Crear nuevo reto</button>}
   {error&&<p role="alert" style={{padding:12,color:'#8c362c',background:'#fff0ee',borderRadius:8}}>{error}</p>}
   {notice&&<p role="status" style={{padding:12,color:'#255c30',background:'#eef9e8',borderRadius:8}}>{notice}</p>}
-  {isAdmin&&editing&&<form className="card" onSubmit={save} style={{marginBottom:24,background:'#fffdf5'}}>
+  {canManage&&editing&&<form className="card" onSubmit={save} style={{marginBottom:24,background:'#fffdf5'}}>
    <h3 style={{marginTop:0}}>{form.id?'Editar reto':'Nuevo reto'}</h3>
    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))',gap:15}}>
     <label>Nombre del reto <input required maxLength={100} minLength={5} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} style={{display:'block',width:'100%',padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}} placeholder="Ej.: Semana de Campeones"/></label>
@@ -101,24 +103,25 @@ function ChallengeCenter({user,setPage}) {
     </select></label>
    </div>
    <label style={{display:'block',marginTop:12}}>Descripción <textarea value={form.description} maxLength={500} onChange={e=>setForm(f=>({...f,description:e.target.value}))} rows={2} style={{display:'block',width:'100%',padding:10,marginTop:4,border:'1px solid #ced8c8',borderRadius:8}} placeholder="Condiciones o premios que quieras anunciar"/></label>
-   <p style={summaryStyle}>Puedes hacer retos diarios, semanales o mensuales con sus fechas. Los cambios a retos existentes se registran en auditoría.</p>
+   <p style={summaryStyle}>Puedes hacer retos diarios, semanales o mensuales con sus fechas. Los cambios a retos existentes se registran en auditoría. Los líderes solo gestionan retos de sus propias estructuras.</p>
    <div style={{display:'flex',gap:10}}>
     <button type="submit" disabled={saving} style={{padding:'10px 18px',color:'#fff',background:'#19683b',borderRadius:8}}>{saving?'Guardando…':'Guardar reto'}</button>
     <button type="button" onClick={()=>setEditing(false)} style={{padding:'10px 18px',background:'#eee',borderRadius:8}}>Cancelar</button>
    </div>
   </form>}
-  <h3>{isAdmin?'Retos configurados':'Retos disponibles'}</h3>
-  {loading?<p>Cargando retos…</p>:rows.length===0?<p className="card">Todavía no hay retos activos. {isAdmin?'Presiona «Crear nuevo reto» para comenzar.':''}</p>:
+  <h3>{canManage?'Retos configurados y disponibles':'Retos disponibles'}</h3>
+  {loading?<p>Cargando retos…</p>:rows.length===0?<p className="card">Todavía no hay retos activos. {canManage?'Presiona «Crear nuevo reto» para comenzar.':''}</p>:
   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(270px,1fr))',gap:12,marginBottom:22}}>
    {rows.map(c=><div className="card" key={c.id} style={{padding:16,border:selected===c.id?'2px solid #77b141':'1px solid #e1e8da'}}>
     <div style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'start'}}><strong style={{fontSize:17}}>{c.title}</strong><span style={{fontSize:12,color:c.status==='active'?'#188044':'#755820'}}>{state(c)}</span></div>
     <p style={summaryStyle}>{c.starts_on} al {c.ends_on} · {scopes[c.participant_scope]}</p>
     <div style={{fontSize:14,color:'#2e5535',fontWeight:700}}>{metrics[c.metric]} · Meta {fmt(c.target,c.metric)}</div>
+    <div style={{fontSize:12,color:'#697963',marginTop:5}}>{c.owner_agent_id?'Reto de estructura':'Reto de toda la agencia'}</div>
     <p style={{fontSize:13,color:'#647365'}}>{c.description}</p>
     <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
      <button onClick={()=>setSelected(c.id)} style={{padding:'7px 12px',background:'#e4f0d7',borderRadius:7}}>🏆 Ver marcador</button>
-     {isAdmin&&<button onClick={()=>edit(c)} style={{padding:'7px 12px',background:'#f3e8c8',borderRadius:7}}>Editar</button>}
-     {isAdmin&&c.status!=='archived'&&<button onClick={()=>archive(c)} disabled={saving} style={{padding:'7px 12px',background:'#f6eded',borderRadius:7}}>Archivar</button>}
+     {owns(c)&&<button onClick={()=>edit(c)} style={{padding:'7px 12px',background:'#f3e8c8',borderRadius:7}}>Editar</button>}
+     {owns(c)&&c.status!=='archived'&&<button onClick={()=>archive(c)} disabled={saving} style={{padding:'7px 12px',background:'#f6eded',borderRadius:7}}>Archivar</button>}
     </div>
    </div>)}
   </div>}
