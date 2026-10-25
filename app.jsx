@@ -1,5 +1,6 @@
 function App() {
   const [mobileOpen,setMobileOpen]=React.useState(false);
+  const [mobileDockOpen,setMobileDockOpen]=React.useState(false);
   const [lang, setLang] = React.useState(() => localStorage.getItem('flc_lang') || 'es');
   const [user, setUser] = React.useState(null);
   const [authReady, setAuthReady] = React.useState(false);
@@ -120,10 +121,13 @@ function App() {
         {pages[page] || pages.dashboard}
       </div>
 
-      <LiveSalesFeed user={user} />
-      <RankCelebrations user={user} />
-      <ChallengeCelebrations user={user} />
-      <AgentPositionFloater user={user} setPage={setPage} />
+      <div className={'flc-mobile-dock'+(mobileDockOpen?' dock-expanded':'')}>
+        <LiveSalesFeed user={user} />
+        <RankCelebrations user={user} />
+        <ChallengeCelebrations user={user} />
+        <AgentPositionFloater user={user} setPage={setPage} />
+        <button type="button" className="flc-mobile-dock-toggle" aria-label={mobileDockOpen?'Ocultar accesos flotantes':'Mostrar posición y reconocimientos'} aria-expanded={mobileDockOpen} onClick={()=>setMobileDockOpen(v=>!v)}>{mobileDockOpen?'×':'🏆'}<span>{mobileDockOpen?'Cerrar':'Logros'}</span></button>
+      </div>
       {showWelcome && (
         <WelcomeVideo user={user} lang={lang} onClose={() => setShowWelcome(false)} />
       )}
