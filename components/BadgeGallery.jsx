@@ -10,6 +10,8 @@ function BadgeGallery({user,setPage}) {
  const [target,setTarget]=React.useState(user.id);
  const [agents,setAgents]=React.useState([]);
  const [rows,setRows]=React.useState([]);
+ const [challengeAwards,setChallengeAwards]=React.useState([]);
+ const [challengeError,setChallengeError]=React.useState('');
  const [loading,setLoading]=React.useState(true);
  const [message,setMessage]=React.useState('');
  const [reconciling,setReconciling]=React.useState(false);
@@ -21,7 +23,13 @@ function BadgeGallery({user,setPage}) {
  },[user.id,user.role]);
  const load=React.useCallback(async()=>{
   setLoading(true);
-  const {data,error}=await window.flcSupabase.rpc('flc_badge_gallery',{p_agent_id:target});
+  const [badges,challenge]=await Promise.all([
+   window.flcSupabase.rpc('flc_badge_gallery',{p_agent_id:target}),
+   window.flcSupabase.rpc('flc_agent_challenge_awards',{p_agent_id:target})
+  ]);
+  const {data,error}=badges;
+  if(challenge.error){setChallengeAwards([]);setChallengeError('Las insignias de retos estarán disponibles después de ejecutar SQL 031.');}
+  else{setChallengeAwards(challenge.data||[]);setChallengeError('');}
   if(error){setRows([]);setMessage('Las insignias todavía no están activadas. Ejecuta SQL 027 antes de probar este panel.');}
   else{setRows(data||[]);setMessage('');}
   setLoading(false);
@@ -60,6 +68,15 @@ function BadgeGallery({user,setPage}) {
   await load();setMessage('✅ Revisado. Nuevas insignias históricas: '+data+'. Sin alterar pólizas.');
  };
  const earnedByCode=Object.fromEntries(Object.keys(specs).map(k=>[k,rows.filter(r=>r.badge_code===k)]));
+ const formatGoal=r=>r.metric==='submitted_policies'?Number(r.target_value).toLocaleString('es-US')+' pólizas':Number(r.target_value).toLocaleString('en-US',{style:'currency',currency:'USD'});
+ const formatMetric=r=>({verified_ap:'AP Issue Paid verificada',submitted_ap:'AP sometida',submitted_policies:'Pólizas sometidas'})[r.metric]||'Producción';
+ const challengeText=r=>['🏆🎉 *¡CAMPEÓN FLC!*','','⭐ *'+sender+'*','🏅 *Reto completado:* '+r.challenge_title,
+  '🎯 *Meta:* '+formatGoal(r)+' · '+formatMetric(r),'','💚 ¡Seguimos construyendo legados!'].join('\\n');
+ const challengePlain=r=>['*CAMPEON FLC*','','*Participante:* '+sender,'*Reto completado:* '+r.challenge_title,
+  '*Meta:* '+formatGoal(r)+' - '+formatMetric(r),'','Felicidades! Seguimos construyendo legados!'].join('\\n');
+ const challengeCopy=async r=>{try{await navigator.clipboard.writeText(challengeText(r));setMessage('✅ Reconocimiento del reto copiado con emojis.');}
+  catch(e){setMessage('No se pudo copiar el reconocimiento.');}};
+ const challengeShare=r=>window.open('https://wa.me/?text='+encodeURIComponent(challengePlain(r)),'_blank','noopener,noreferrer');
  return <section data-screen-label="FLC Academy Mis Insignias" style={{maxWidth:1100}}>
   <button onClick={()=>setPage('dashboard')} style={{color:'#345d27',marginBottom:12}}>← Volver al inicio</button>
   <h1 className="page-title">🏅 Mis <em>insignias</em></h1>
@@ -95,6 +112,22 @@ function BadgeGallery({user,setPage}) {
       </React.Fragment>}
      </article>;
     })}
+   </div>
+   <h2 style={{marginTop:28,color:'#173c27'}}>🏆 Insignias de retos completados</h2>
+   <p style={{fontSize:13,color:'#667666'}}>Cada reto activo completado otorga una sola insignia permanente al participante que alcanza su meta.</p>
+   {challengeError&&<p role="status" style={{fontSize:12,color:'#875e1a'}}>{challengeError}</p>}
+   {challengeAwards.length===0&&!challengeError&&<p className="card" style={{color:'#647365'}}>Todavía no hay retos completados con recompensa registrada.</p>}
+   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:14}}>
+    {challengeAwards.map(r=><article key={r.reward_id} className="card" style={{background:'linear-gradient(145deg,#fffdf2,#f0f8eb)',border:'1px solid #d9ba68'}}>
+     <div style={{fontSize:38}}>🏆🏅</div>
+     <h3 style={{margin:'7px 0',color:'#244e2f'}}>{r.challenge_title}</h3>
+     <p style={{fontSize:13,color:'#576957'}}>Meta: <strong>{formatGoal(r)}</strong><br/>{formatMetric(r)}</p>
+     <p style={{fontSize:13,color:'#7d5e19',fontWeight:700}}>✅ Conseguida · {new Date(r.earned_at).toLocaleDateString('es-US',{timeZone:'America/New_York'})}</p>
+     <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+      <button onClick={()=>challengeCopy(r)} style={{padding:'8px 10px',background:'#dcedca',borderRadius:7,fontSize:12}}>📋 Copiar con emojis</button>
+      <button onClick={()=>challengeShare(r)} style={{padding:'8px 10px',background:'#1c6a40',color:'#fff',borderRadius:7,fontSize:12}}>📲 WhatsApp</button>
+     </div>
+    </article>)}
    </div>
    <p style={{fontSize:12,color:'#677366',marginTop:18}}>Los títulos de liderazgo se revisan por separado conforme a las reglas mensuales de FLC Academy. Las insignias representan logros históricos, no títulos vigentes.</p>
   </React.Fragment>}
