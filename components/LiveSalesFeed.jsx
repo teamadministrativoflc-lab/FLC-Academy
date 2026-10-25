@@ -50,7 +50,7 @@ function LiveSalesFeed({user}) {
    '🏢 Compañía: '+r.carrier,
    '📄 Producto: '+r.product_type,
    '💰 AP total: '+money(r.total_ap),
-   '📋 Estado: Sometida',
+   '📋 Estado: '+(r.status||'Sometida'),
    '',
    '💪🔥 ¡Felicidades '+(ps.length>1?ps.map(p=>p.name.split(' ')[0]).join(' y '):r.principal_name.split(' ')[0])+'! ¡Seguimos construyendo legados!'].join('\n');
  };
@@ -60,7 +60,7 @@ function LiveSalesFeed({user}) {
  return <React.Fragment>
   {recentToast&&!open&&<button type="button" onClick={()=>{setOpen(true);setRecentToast(null);}} style={{position:'fixed',right:20,bottom:156,zIndex:1001,background:'#e9f6e8',border:'1px solid #98c69c',borderRadius:12,padding:14,maxWidth:320,boxShadow:'0 8px 25px #0002',textAlign:'left',fontWeight:600,color:'#15572e'}}>🎉 ¡Nueva venta de {recentToast.principal_name}!<div style={{fontSize:13}}>{money(recentToast.total_ap)} AP · Abrir anuncio</div></button>}
   {open&&<aside aria-label="FLC Ventas en Vivo" style={frame}>
-   <div style={{background:'#184c30',color:'#fff',padding:'15px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}><div><strong>🎉 FLC Ventas en Vivo</strong><div style={{fontSize:12,opacity:.8}}>Celebramos cada póliza sometida</div></div><button type="button" aria-label="Cerrar" onClick={()=>setOpen(false)} style={{color:'#fff',fontSize:25}}>×</button></div>
+   <div style={{background:'#184c30',color:'#fff',padding:'15px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}><div><strong>🎉 FLC Ventas en Vivo</strong><div style={{fontSize:12,opacity:.8}}>Celebramos cada nueva póliza</div></div><button type="button" aria-label="Cerrar" onClick={()=>setOpen(false)} style={{color:'#fff',fontSize:25}}>×</button></div>
    <div style={{padding:12,overflowY:'auto',flex:1,background:'#f8faf6',display:'flex',flexDirection:'column',gap:12}}>
     {error&&<p role="status" style={{fontSize:12,color:'#92521b'}}>{error}</p>}
     {!rows.length&&!error&&<p style={{fontSize:13,color:'#617565'}}>Las próximas ventas aparecerán aquí automáticamente.</p>}
@@ -73,7 +73,7 @@ function LiveSalesFeed({user}) {
       <div>🏢 Compañía: <b>{r.carrier}</b></div>
       <div>📄 Producto: <b>{r.product_type}</b></div>
       <div>💰 AP total: <b>{money(r.total_ap)}</b></div>
-      <div>📋 Estado al reportar: <b>Sometida</b></div>
+      <div>📋 Estado al reportar: <b>{r.status||'Sometida'}</b></div>
      </div>
      <p style={{fontWeight:700,margin:'10px 0'}}>💪🔥 ¡Felicidades por esta venta!</p>
      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button type="button" onClick={()=>copy(r)} style={{background:'#fff',border:'1px solid #a6cbb0',borderRadius:7,padding:'7px 9px',fontSize:12}}>📋 Copiar mensaje</button><button type="button" onClick={()=>whatsApp(r)} style={{background:'#1b834c',color:'#fff',borderRadius:7,padding:'7px 9px',fontSize:12}}>📲 Compartir por WhatsApp</button></div>
