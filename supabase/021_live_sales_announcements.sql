@@ -7,9 +7,6 @@ CREATE TABLE IF NOT EXISTS public.flc_sale_announcements (
  principal_agent_id uuid NOT NULL REFERENCES public.agent_profiles(id),
  principal_name text NOT NULL,
  client_name text NOT NULL DEFAULT '',
- possible_duplicate boolean NOT NULL DEFAULT false,
- first_reporter_name text,
- first_reported_at timestamptz,
  carrier text NOT NULL,
  product_type text NOT NULL,
  total_ap numeric(12,2) NOT NULL,
@@ -19,9 +16,6 @@ CREATE TABLE IF NOT EXISTS public.flc_sale_announcements (
 );
 -- If SQL 021 was already executed, add columns without dropping records.
 ALTER TABLE public.flc_sale_announcements ADD COLUMN IF NOT EXISTS client_name text NOT NULL DEFAULT '';
-ALTER TABLE public.flc_sale_announcements ADD COLUMN IF NOT EXISTS possible_duplicate boolean NOT NULL DEFAULT false;
-ALTER TABLE public.flc_sale_announcements ADD COLUMN IF NOT EXISTS first_reporter_name text;
-ALTER TABLE public.flc_sale_announcements ADD COLUMN IF NOT EXISTS first_reported_at timestamptz;
 CREATE INDEX IF NOT EXISTS flc_sale_announcements_recent_idx
  ON public.flc_sale_announcements(announced_at DESC);
 ALTER TABLE public.flc_sale_announcements ENABLE ROW LEVEL SECURITY;
@@ -37,7 +31,7 @@ CREATE POLICY flc_sale_announcements_authenticated_read
 CREATE OR REPLACE FUNCTION public.flc_refresh_sale_announcement(p_policy_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $$
-DECLARE p record; v_people jsonb; v_first record;
+DECLARE p record; v_people jsonb;
 BEGIN
  SELECT s.id,s.agent_id,s.client_name,s.carrier,s.product_type,s.annual_premium,s.status,
   a.full_name AS principal_name
@@ -45,14 +39,6 @@ BEGIN
  JOIN public.agent_profiles a ON a.id=s.agent_id
  WHERE s.id=p_policy_id;
  IF NOT FOUND THEN RETURN; END IF;
- -- Compare normalized client names agency-wide. A possible duplicate is a
- -- review flag, never an automatic ownership decision.
- SELECT s.id,s.created_at,a.full_name AS reporter
- INTO v_first FROM public.flc_policy_sales s
- JOIN public.agent_profiles a ON a.id=s.agent_id
- WHERE lower(regexp_replace(btrim(s.client_name),'[[:space:]]+',' ','g'))=
-       lower(regexp_replace(btrim(p.client_name),'[[:space:]]+',' ','g'))
- ORDER BY s.created_at,s.id LIMIT 1;
  SELECT COALESCE(jsonb_agg(jsonb_build_object(
   'name',a.full_name,'percent',c.percent,
   'credited_ap',round(p.annual_premium*c.percent/100,2),
@@ -63,16 +49,9 @@ BEGIN
  JOIN public.agent_profiles a ON a.id=c.agent_id
  WHERE c.policy_id=p_policy_id;
  INSERT INTO public.flc_sale_announcements
-  (policy_id,principal_agent_id,principal_name,client_name,possible_duplicate,
-   first_reporter_name,first_reported_at,carrier,product_type,total_ap,status,participants)
- VALUES(p.id,p.agent_id,p.principal_name,p.client_name,
-  v_first.id IS DISTINCT FROM p.id,v_first.reporter,v_first.created_at,
-  p.carrier,p.product_type,p.annual_premium,'Sometida',v_people)
- ON CONFLICT(policy_id) DO UPDATE SET
-  participants=EXCLUDED.participants,client_name=EXCLUDED.client_name,
-  possible_duplicate=EXCLUDED.possible_duplicate,
-  first_reporter_name=EXCLUDED.first_reporter_name,
-  first_reported_at=EXCLUDED.first_reported_at;
+  (policy_id,principal_agent_id,principal_name,client_name,carrier,product_type,total_ap,status,participants)
+ VALUES(p.id,p.agent_id,p.principal_name,p.client_name,p.carrier,p.product_type,p.annual_premium,'Sometida',v_people)
+ ON CONFLICT(policy_id) DO UPDATE SET participants=EXCLUDED.participants,client_name=EXCLUDED.client_name;
 END;
 $$;
 REVOKE ALL ON FUNCTION public.flc_refresh_sale_announcement(uuid) FROM PUBLIC,anon,authenticated;
