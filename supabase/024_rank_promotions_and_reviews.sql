@@ -81,7 +81,12 @@ BEGIN
   AND NEW.issue_paid_verified_at IS NOT NULL
   AND NEW.issue_paid_verified_at IS DISTINCT FROM OLD.issue_paid_verified_at
  THEN
-  PERFORM public.flc_apply_rank_promotions(NEW.issue_paid_on);
+  BEGIN
+   PERFORM public.flc_apply_rank_promotions(NEW.issue_paid_on);
+  EXCEPTION WHEN OTHERS THEN
+   -- A gamification failure must NEVER undo a real Issue Paid verification.
+   RAISE WARNING 'FLC rank auto-promotion failed for policy %: %',NEW.id,SQLERRM;
+  END;
  END IF;
  RETURN NEW;
 END;
