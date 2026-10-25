@@ -1,4 +1,4 @@
-function Sidebar({ page, setPage, user, onLogout, t, lang, isLeader }) {
+function Sidebar({ page, setPage, user, onLogout, t, lang, isLeader, mobileOpen, onClose }) {
   // Order requested by user: inicio, tutoriales, mi progreso, recursos, compañías, el matcher
   const items = [
     { id: 'dashboard', icon: 'home',     label: t('nav_dashboard') },
@@ -21,7 +21,8 @@ function Sidebar({ page, setPage, user, onLogout, t, lang, isLeader }) {
   const initials = (user.name || 'A').split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${mobileOpen ? "mobile-open" : ""}`} aria-label="Menú principal">
+      <button type="button" className="mobile-sidebar-close" aria-label="Cerrar menú principal" onClick={onClose}>×</button>
       <div className="sb-brand">
         <div className="sb-brand-mark">
           <img src="assets/logo.png" alt="Future Legacy Creators" />
