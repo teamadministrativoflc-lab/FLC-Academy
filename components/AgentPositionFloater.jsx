@@ -26,13 +26,17 @@ function AgentPositionFloater({user,setPage}) {
  const mine=rows.find(r=>r.agent_id===user.id);
  const rank=mine?Number(mine.rank_policies):null;
  const leaders=[...rows].sort((a,b)=>Number(a.rank_policies)-Number(b.rank_policies)).slice(0,3);
+ const apLeader=[...rows].sort((a,b)=>Number(b.submitted_ap)-Number(a.submitted_ap)||Number(a.rank_ap)-Number(b.rank_ap))[0];
+ const policiesBehind=mine&&leaders[0]?Math.max(0,Number(leaders[0].submitted_policies)-Number(mine.submitted_policies)):null;
+ const apBehind=mine&&apLeader?Math.max(0,Math.round((Number(apLeader.submitted_ap)-Number(mine.submitted_ap))*100)/100):null;
+ const fmtAp=n=>Number(n||0).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2});
  return <React.Fragment>
   {open&&<aside aria-label="Posición de producción por período" style={{position:'fixed',right:20,bottom:385,zIndex:1005,width:'min(365px,calc(100vw - 32px))',maxHeight:'min(450px,calc(100vh - 420px))',overflowY:'auto',background:'#fff',color:'#1c3022',border:'2px solid #a6c77b',borderRadius:15,boxShadow:'0 10px 36px #0004',padding:18}}>
    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><strong>🏆 Mi posición {periodLabels[period]}</strong><button type="button" onClick={()=>setOpen(false)} aria-label="Cerrar posición">×</button></div>
    <label style={{display:'flex',gap:8,alignItems:'center',margin:'12px 0',fontSize:13}}>Período: <select value={period} onChange={e=>setPeriod(e.target.value)} style={{padding:8,border:'1px solid #accbb0',borderRadius:8,flex:1}}><option value="day">Día</option><option value="week">Semana</option><option value="month">Mes</option><option value="year">Año</option></select></label>
    <p style={{fontSize:12,color:'#597061'}}>Del {fromDate||'…'} al {asOf||'hoy'} · Pólizas sometidas</p>
    {error?<p role="alert">{error}</p>:loading?<p>Actualizando posición…</p>:<React.Fragment>
-    <div style={{background:'#edf5ed',borderRadius:12,padding:12}}><div style={{fontSize:32,fontWeight:800}}>{rank?'#'+rank:'Sin posición'}</div><strong>{user.name}</strong><div>{mine?Number(mine.submitted_policies)+' póliza(s) sometida(s)':'Todavía no has sometido pólizas en este período.'}</div></div>
+    <div style={{background:'#edf5ed',borderRadius:12,padding:12}}><div style={{fontSize:32,fontWeight:800}}>{rank?'#'+rank:'Sin posición'}</div><strong>{user.name}</strong><div>{mine?Number(mine.submitted_policies)+' póliza(s) sometida(s)':'Todavía no has sometido pólizas en este período.'}</div>{mine&&<div style={{fontSize:13,marginTop:9,lineHeight:1.6}}><strong>{policiesBehind===0?'✓ Lideras en cantidad':'A '+policiesBehind+' póliza(s) del #1 por cantidad'}</strong><div><strong>{apBehind===0?'✓ Lideras en AP':'A '+fmtAp(apBehind)+' del #1 por AP sometida'}</strong></div><small>AP acreditada según split. Cada comparación usa al líder de su categoría.</small></div>}</div>
     <h4 style={{marginBottom:8}}>Podio de {periodLabels[period]}</h4>
     {leaders.length?leaders.map((r,i)=><div key={r.agent_id} style={{padding:'8px 0',borderBottom:'1px solid #e3ece3'}}>{['🥇','🥈','🥉'][i]} {r.full_name} · {r.submitted_policies} póliza(s)</div>):<p>Aún no hay producción.</p>}
    </React.Fragment>}
