@@ -306,6 +306,10 @@ function ProductionCenter({user,setPage}) {
  const myStanding=agencyStandings.find(a=>a.agent_id===user.id);
  const myPosition=myStanding?Number(positionMode==='submitted_ap'?myStanding.rank_ap:myStanding.rank_policies):null;
  const podiumStandings=standingsOrdered.slice(0,3);
+ const policyLeader=[...agencyStandings].sort((a,b)=>Number(b.submitted_policies)-Number(a.submitted_policies)||Number(a.rank_policies)-Number(b.rank_policies))[0];
+ const apLeader=[...agencyStandings].sort((a,b)=>Number(b.submitted_ap)-Number(a.submitted_ap)||Number(a.rank_ap)-Number(b.rank_ap))[0];
+ const missingPolicies=myStanding&&policyLeader?Math.max(0,Number(policyLeader.submitted_policies)-Number(myStanding.submitted_policies)):null;
+ const missingAp=myStanding&&apLeader?Math.max(0,Math.round((Number(apLeader.submitted_ap)-Number(myStanding.submitted_ap))*100)/100):null;
  const positionAmount=a=>positionMode==='submitted_ap'?fmt(a.submitted_ap):Number(a.submitted_policies).toLocaleString('en-US')+' póliza'+(Number(a.submitted_policies)===1?'':'s');
  const metric=(label,value)=><div style={{background:'#f5f8f3',border:'1px solid #dfebdc',padding:16,borderRadius:10}}><div style={{color:'#516552',fontSize:13}}>{label}</div><div style={{fontSize:23,fontWeight:700,marginTop:7}}>{value}</div></div>;
  const field=(label,child)=><label style={{display:'flex',flexDirection:'column',gap:5,fontSize:13,fontWeight:600}}>{label}{child}</label>;
@@ -430,6 +434,11 @@ function ProductionCenter({user,setPage}) {
      <small style={{color:'#b0d2bb'}}>TU POSICIÓN EN FLC</small>
      <div style={{fontSize:36,fontWeight:800,marginTop:7}}>{myPosition?'#'+myPosition:'—'}</div>
      <strong>{user.name}</strong><div style={{color:'#cef3d5',marginTop:5}}>{myStanding?positionAmount(myStanding):'Sin pólizas sometidas en este período'}</div>
+     {myStanding&&<div style={{marginTop:12,fontSize:13,lineHeight:1.65,color:'#fff'}}>
+      <div><strong>{missingPolicies===0?'✓ Lideras en cantidad':'A '+missingPolicies+' póliza(s) del líder en cantidad'}</strong></div>
+      <div><strong>{missingAp===0?'✓ Lideras en AP sometida':'A '+fmt(missingAp)+' del líder en AP sometida'}</strong></div>
+      <small style={{color:'#b0d2bb'}}>Comparación con el #1 de cada categoría, usando tu AP acreditada por split.</small>
+     </div>}
     </div>
     <div style={{background:'#263b36',padding:15,border:'1px solid #587866',borderRadius:12}}>
      <small style={{color:'#b0d2bb'}}>AGENTES CON PRODUCCIÓN</small>
@@ -447,8 +456,8 @@ function ProductionCenter({user,setPage}) {
    </div>:<p>Sin agentes con producción sometida en el período seleccionado.</p>}
    {standingsOrdered.length>3&&<details style={{marginTop:17}}><summary style={{cursor:'pointer'}}>Ver clasificación de agentes · Top 10</summary>
     <div style={{overflowX:'auto',marginTop:10}}><table style={{width:'100%',fontSize:13,borderCollapse:'collapse'}}>
-     <thead><tr><th style={{textAlign:'left',padding:8}}>Lugar</th><th style={{textAlign:'left'}}>Agente</th><th style={{textAlign:'right'}}>Producción</th></tr></thead>
-     <tbody>{standingsOrdered.slice(0,10).map((a,i)=><tr key={a.agent_id}><td style={{padding:8,borderTop:'1px solid #496551'}}>#{i+1}</td><td>{a.full_name}</td><td style={{textAlign:'right'}}>{positionAmount(a)}</td></tr>)}</tbody>
+     <thead><tr><th style={{textAlign:'left',padding:8}}>Lugar</th><th style={{textAlign:'left'}}>Agente</th><th style={{textAlign:'right'}}>Producción</th><th style={{textAlign:'right'}}>Distancia al #1 de esta categoría</th></tr></thead>
+     <tbody>{standingsOrdered.slice(0,10).map((a,i)=><tr key={a.agent_id}><td style={{padding:8,borderTop:'1px solid #496551'}}>#{i+1}</td><td>{a.full_name}</td><td style={{textAlign:'right'}}>{positionAmount(a)}</td><td style={{textAlign:'right'}}>{positionMode==='submitted_ap'?fmt(Math.max(0,Math.round((Number(standingsOrdered[0].submitted_ap)-Number(a.submitted_ap))*100)/100)):Math.max(0,Number(standingsOrdered[0].submitted_policies)-Number(a.submitted_policies))+' póliza(s)'}</td></tr>)}</tbody>
     </table></div></details>}
   </React.Fragment>}
  </section>
