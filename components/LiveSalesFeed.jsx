@@ -103,6 +103,6 @@ function LiveSalesFeed({user}) {
    </div>
    <div style={{padding:'9px 14px',fontSize:11,color:'#657869',borderTop:'1px solid #dae6dc'}}>Solo lectura · El usuario selecciona el grupo y confirma el envío. Incluye nombre del cliente: comparte solo en el grupo autorizado.</div>
   </aside>}
-  <button type="button" aria-label="Abrir FLC Ventas en Vivo" onClick={()=>{setOpen(x=>!x);window.dispatchEvent(new Event('flc:sales-panel-open'));}} style={{position:'fixed',right:22,bottom:22,zIndex:1000,background:'#184c30',color:'white',borderRadius:'50%',width:58,height:58,fontSize:25,boxShadow:'0 6px 22px #0004',border:'3px solid #a5d670'}}>💬{unread>0&&!open&&<span style={{position:'absolute',right:-5,top:-7,borderRadius:20,background:'#db4747',color:'white',fontSize:12,padding:'2px 6px'}}>{unread}</span>}</button>
+  <button className="flc-float-sales" type="button" aria-label="Abrir FLC Ventas en Vivo" onClick={()=>{setOpen(x=>!x);window.dispatchEvent(new Event('flc:sales-panel-open'));}} style={{position:'fixed',right:22,bottom:22,zIndex:1000,background:'#184c30',color:'white',borderRadius:'50%',width:58,height:58,fontSize:25,boxShadow:'0 6px 22px #0004',border:'3px solid #a5d670'}}>💬{unread>0&&!open&&<span style={{position:'absolute',right:-5,top:-7,borderRadius:20,background:'#db4747',color:'white',fontSize:12,padding:'2px 6px'}}>{unread}</span>}</button>
  </React.Fragment>;
 }
