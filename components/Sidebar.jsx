@@ -9,7 +9,7 @@ function Sidebar({ page, setPage, user, onLogout, t, lang, isLeader }) {
     { id: 'matcher',   icon: 'compass',  label: t('nav_matcher'), badge: 'AI' },
     { id: 'challenges',icon: 'sparkle',  label: 'Retos FLC' },
     { id: 'badges',    icon: 'star',     label: 'Mis insignias' },
-    { id: 'production',icon: 'clipboard',label: 'Mis ventas / Nueva póliza' },
+    { id: 'production',icon: 'clipboard',label: 'FLC Production Center' },
     ...(isLeader&&user.role!=='admin'?[{id:'team',icon:'handshake',label:'Mi equipo'}]:[]),
     ...(user.role==='admin'?[
       {id:'ceo',icon:'chart',label:'Panel de Dirección FLC'},
