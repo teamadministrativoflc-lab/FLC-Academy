@@ -3,7 +3,19 @@ function ProductionCenter({user,setPage}) {
  const carriers=['National Life Group','F&G','Foresters','American Amicable','Transamerica','Mutual of Omaha','Aetna','Americo','Lincoln Heritage','Occidental','Corebridge','Athene','Otro'];
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',partners:[],primaryPct:'100',date:new Date().toISOString().slice(0,10),primary:'',initialDisposition:'Sometida'});
- const [activeSection,setActiveSection]=React.useState('policies');
+ const [activeSection,setActiveSection]=React.useState(()=>{
+  const target=window.sessionStorage.getItem('flc_production_target_section');
+  if(target==='ranking')window.sessionStorage.removeItem('flc_production_target_section');
+  return target==='ranking'?'ranking':'policies';
+ });
+ React.useEffect(()=>{
+  const showRanking=()=>{
+   setActiveSection('ranking');
+   window.sessionStorage.removeItem('flc_production_target_section');
+  };
+  window.addEventListener('flc:show-production-ranking',showRanking);
+  return()=>window.removeEventListener('flc:show-production-ranking',showRanking);
+ },[]);
  const [uplineGoal,setUplineGoal]=React.useState('');
  const [savedUplineGoal,setSavedUplineGoal]=React.useState(null);
  const [goalBusy,setGoalBusy]=React.useState(false);
