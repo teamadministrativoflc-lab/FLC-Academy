@@ -1,5 +1,12 @@
 function Progress({ t, lang, progress, setProgress, setPage, user }) {
   const modules = window.PROGRESS_MODULES;
+  const [tutorialStats,setTutorialStats]=React.useState({completed:0,loaded:false,error:false});
+  const totalTutorials=(window.TUTORIAL_CATEGORIES||[]).reduce((total,c)=>total+(c.groups||[]).reduce((n,g)=>n+(g.videos||[]).length,0),0);
+  const loadTutorialStats=React.useCallback(async()=>{
+    const {data,error}=await window.flcSupabase.from('tutorial_completions').select('tutorial_id').eq('agent_id',user.id);
+    setTutorialStats({completed:error?0:new Set((data||[]).map(x=>x.tutorial_id)).size,loaded:!error,error:!!error});
+  },[user.id]);
+  React.useEffect(()=>{loadTutorialStats();},[loadTutorialStats]);
   const [openView, setOpenView] = React.useState(null);
   const [showCert, setShowCert] = React.useState(false);
   const [showQuiz, setShowQuiz] = React.useState(false);
@@ -81,6 +88,23 @@ function Progress({ t, lang, progress, setProgress, setPage, user }) {
       <div className="breadcrumb">{t('nav_learn')} · <span>{t('nav_progress')}</span></div>
       <h1 className="page-title">{t('p_title_a')} <em>{t('p_title_b')}</em></h1>
       <p className="page-sub">{t('p_sub')}</p>
+
+      <section aria-label="Mi resumen de formación" style={{background:'#fff',border:'1px solid #dce5d8',borderRadius:14,padding:18,margin:'20px 0 24px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',gap:10,flexWrap:'wrap'}}><h2 style={{fontSize:20,margin:0}}>Mi avance de formación</h2><button type="button" onClick={()=>{refreshQuizState();loadTutorialStats();}} style={{padding:'8px 12px',border:'1px solid #aac4aa',borderRadius:8,background:'#f5faf4'}}>↻ Actualizar avance</button></div>
+        <p style={{fontSize:13,color:'#536454',margin:'8px 0 14px'}}>Tu propio avance, calculado con los registros guardados de la academia.</p>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(135px,1fr))',gap:10}}>
+        {[
+          ['Módulos',totalPct+'%'],
+          ['Tutoriales',tutorialStats.loaded?tutorialStats.completed+'/'+totalTutorials:'—'],
+          ['Intentos de examen',quizState.loaded?quizAttempts+'/'+(window.QUIZ_MAX_ATTEMPTS||3):'—'],
+          ['Mejor nota',quizState.loaded&&quizAttempts?quizBestScore+'%':'—'],
+          ['Examen',quizState.loaded?(quizPassed?'Aprobado':'Pendiente'):'Cargando…'],
+          ['Certificado',certUnlocked?'Disponible':'Pendiente']
+        ].map(([label,value])=><div key={label} style={{padding:13,border:'1px solid #e3ebe0',borderRadius:10,background:'#f9fcf8'}}><div style={{fontSize:12,color:'#526753'}}>{label}</div><div style={{fontSize:19,fontWeight:700,marginTop:7,color:'#154f31'}}>{value}</div></div>)}
+        </div>
+        {tutorialStats.error&&<p role="alert" style={{color:'#9a3737',fontSize:12}}>No se pudieron consultar los tutoriales completados. Intenta actualizar.</p>}
+        <div style={{marginTop:14}}><button type="button" onClick={()=>setPage('tutorials')} style={{padding:'8px 12px',background:'#e8f4e8',border:'1px solid #c0d9c3',borderRadius:8}}>Ver tutoriales y videos</button></div>
+      </section>
 
       {/* Certificate + Quiz gate */}
       <CertificateGate
