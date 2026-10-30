@@ -1,7 +1,4 @@
 function ProductionCenter({user,setPage}) {
-  const normalizePolicyText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  const searchTerm=normalizePolicyText(policySearch);
-  const filteredPolicies=rows.filter(r=>(policyStatusFilter==='all'||r.status===policyStatusFilter)&&(!searchTerm||normalizePolicyText(r.client_name).includes(searchTerm)||normalizePolicyText(r.policy_number).includes(searchTerm)));
  const sources=['AuraFlow','LifeButton','LeadzTech AI','Ecomfy','Leads for Life','Propia campaña','Referido','Familiar / Amistad','Otro'];
  const carriers=['National Life Group','F&G','Foresters','American Amicable','Transamerica','Mutual of Omaha','Aetna','Americo','Lincoln Heritage','Occidental','Corebridge','Athene','Otro'];
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
@@ -364,6 +361,9 @@ function ProductionCenter({user,setPage}) {
  const splitTotal=Number(form.primaryPct||0)+form.partners.reduce((n,p)=>n+Number(p.pct||0),0);
  const primaryAgent=user.role==='admin'?(form.primary||user.id):user.id;
  const statuses=['Sometida','En revisión','Pendiente requisito','Aprobada','Issue Paid','Declinada','Cancelada','Chargeback'];
+  const normalizePolicyText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const searchTerm=normalizePolicyText(policySearch);
+  const filteredPolicies=rows.filter(r=>(policyStatusFilter==='all'||r.status===policyStatusFilter)&&(!searchTerm||normalizePolicyText(r.client_name).includes(searchTerm)||normalizePolicyText(r.policy_number).includes(searchTerm)));
  const openHistory=async row=>{setHistoryPolicy(row);const {data,error}=await window.flcSupabase.from('flc_policy_status_history').select('id,changed_at,changed_by,previous_status,new_status,previous_approved_on,new_approved_on,previous_issue_paid_on,new_issue_paid_on').eq('policy_id',row.id).order('changed_at',{ascending:false});setHistoryRows(error?[]:data||[]);};
  const editAP=row=>{setApEditing({id:row.id,client_name:row.client_name,oldAp:row.annual_premium,newAp:String(row.annual_premium),reason:'',verified:!!row.issue_paid_verified_at});setError('');setNotice('');};
  const saveAP=async()=>{if(!apEditing||apSaving)return;
