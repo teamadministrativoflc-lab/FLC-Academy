@@ -31,6 +31,22 @@ ALTER TABLE public.flc_lead_campaign_agents ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.flc_lead_campaign_rules,public.flc_lead_campaign_agents
  FROM PUBLIC,anon,authenticated;
 
+-- Validate the agent is in the leader's actual team, including subleaders.
+CREATE OR REPLACE FUNCTION public.flc_agent_in_owner_team(p_owner uuid,p_agent uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+AS $
+ WITH RECURSIVE members(id,path) AS (
+  SELECT p_owner,ARRAY[p_owner]::uuid[]
+  UNION ALL
+  SELECT a.agent_id,m.path||a.agent_id
+  FROM public.flc_team_assignments a JOIN members m ON a.leader_id=m.id
+  WHERE NOT a.agent_id=ANY(m.path)
+ )
+ SELECT EXISTS(SELECT 1 FROM members WHERE id=p_agent);
+$;
+REVOKE ALL ON FUNCTION public.flc_agent_in_owner_team(uuid,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.flc_agent_in_owner_team(uuid,uuid) TO authenticated;
+
 -- One transaction + lead row lock + campaign advisory lock ensures concurrent
 -- workers cannot both assign the same lead or overfill a campaign's agent cap.
 -- NULL cap: intentionally unlimited; "Lead por Periodo" is a distinct concept.
@@ -84,6 +100,7 @@ BEGIN
   FROM public.flc_lead_campaign_agents ca
   WHERE ca.campaign_rule_id=v_rule.id AND ca.agent_id=p_agent_id
     AND ca.enabled
+    AND public.flc_agent_in_owner_team(v_lead.owner_leader_id,ca.agent_id)
     AND (v_lead.state_code IS NULL OR
          NOT (v_lead.state_code=ANY(ca.excluded_states)))
     AND NOT EXISTS (
@@ -97,6 +114,7 @@ BEGIN
   SELECT ca.agent_id INTO v_agent
   FROM public.flc_lead_campaign_agents ca
   WHERE ca.campaign_rule_id=v_rule.id AND ca.enabled
+    AND public.flc_agent_in_owner_team(v_lead.owner_leader_id,ca.agent_id)
     AND ca.agent_id IS DISTINCT FROM v_old_agent
     AND (v_lead.state_code IS NULL OR NOT (v_lead.state_code=ANY(ca.excluded_states)))
     AND NOT EXISTS (
