@@ -26,12 +26,14 @@ GRANT EXECUTE ON FUNCTION public.flc_can_view_lead(uuid) TO authenticated;
 CREATE OR REPLACE FUNCTION public.flc_my_leads(p_limit integer DEFAULT 100)
 RETURNS TABLE(
  lead_id uuid,external_lead_id text,source_campaign text,source_provider text,
+ state_code text,timezone_label text,timezone_status text,
  contact_name text,contact_phone text,contact_email text,
  lifecycle_status text,created_at timestamptz,assigned_agent_id uuid,
  assigned_agent_name text,assigned_at timestamptz
 ) LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
 AS $$
  SELECT l.id,l.external_lead_id,l.source_campaign,l.source_provider,
+ l.state_code,l.timezone_label,l.timezone_status,
    l.contact_name,l.contact_phone,l.contact_email,l.lifecycle_status,l.created_at,
    a.agent_id,p.full_name::text,a.assigned_at
  FROM public.flc_leads l
