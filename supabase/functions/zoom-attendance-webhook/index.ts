@@ -57,6 +57,36 @@ Deno.serve(async (request) => {
       payload.event === "meeting.participant_left") {
     // Log only the verified event TYPE. No names, email, meeting IDs or token.
     console.info("FLC Zoom verified event:", payload.event);
+    // Compare Zoom event's meeting ID to a pre-registered testing meeting.
+    // Use privileged server credentials only; never log meeting IDs or keys.
+    const eventPayload = payload.payload as { object?: { id?: unknown } } | undefined;
+    const incomingMeetingId = eventPayload?.object?.id;
+    if (typeof incomingMeetingId !== "string" && typeof incomingMeetingId !== "number") {
+      console.info("FLC Zoom meeting match: missing_id");
+      return json({ accepted: true, presence_updated: false, reason: "missing_meeting_id" });
+    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceKey) {
+      console.warn("FLC Zoom meeting match: database_not_configured");
+      return json({ error: "meeting_verification_unavailable" }, 503);
+    }
+    const lookup = new URL("/rest/v1/flc_zoom_test_meetings", supabaseUrl);
+    lookup.searchParams.set("select", "authorized");
+    lookup.searchParams.set("zoom_meeting_id", "eq." + String(incomingMeetingId));
+    lookup.searchParams.set("limit", "1");
+    const meetingResponse = await fetch(lookup, {
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Accept: "application/json" }
+    });
+    if (!meetingResponse.ok) {
+      console.warn("FLC Zoom meeting match: database_lookup_failed", meetingResponse.status);
+      return json({ error: "meeting_verification_unavailable" }, 503);
+    }
+    const matches = await meetingResponse.json() as Array<{ authorized: boolean }>;
+    const meetingMatched = matches.length === 1;
+    console.info("FLC Zoom meeting match:", meetingMatched ? "matched" : "not_matched");
+    // Never enable presence until verified agent mapping is implemented.
+    return json({ accepted: true, presence_updated: false });
     // Fail closed: do not equate a display name with an Academy user.
     // Next phase must securely associate Zoom participant identity to an agent,
     // verify account and authorized meeting, and reconcile join/leave.
