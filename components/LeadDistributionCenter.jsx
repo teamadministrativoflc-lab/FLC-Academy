@@ -76,10 +76,10 @@ function LeadDistributionCenter({ user, setPage }) {
       {loading?<p role="status">Cargando leads…</p>:
        error?<p role="alert" className="flc-leads-error">{error}</p>:
        <div className="flc-leads-scroll"><table className="flc-leads-table">
-        <thead><tr><th>Lead</th><th>Campaña</th><th>Estado</th><th>Agente</th><th>Registro</th><th>Acción</th></tr></thead>
+        <thead><tr><th>Lead</th><th>Campaña</th><th>Zona</th><th>Estado</th><th>Agente</th><th>Registro</th><th>Acción</th></tr></thead>
         <tbody>{filtered.map(lead=><tr key={lead.lead_id}>
           <td><strong>{lead.contact_name||'Sin nombre'}</strong><small>{lead.external_lead_id||'—'}</small></td>
-          <td>{lead.source_campaign||'—'}</td><td>{labels[lead.lifecycle_status]||lead.lifecycle_status}</td>
+          <td>{lead.source_campaign||'—'}</td><td>{lead.timezone_label||'Por verificar'}{lead.state_code?' · '+lead.state_code:''}</td><td>{labels[lead.lifecycle_status]||lead.lifecycle_status}</td>
           <td>{lead.assigned_agent_name||'Sin asignar'}</td><td>{dateTime(lead.created_at)}</td>
           <td><button type="button" className="btn-secondary" onClick={()=>setSelected(lead)}>Ver historial</button></td>
         </tr>)}</tbody>
