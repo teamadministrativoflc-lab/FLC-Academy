@@ -71,6 +71,14 @@ Deno.serve(async (request) => {
       participant_id_present: hasParticipantId,
       email_present: hasEmail
     }));
+    // Privacy-safe correlation for supervised tests only. No raw user identifier.
+    // A keyed HMAC fingerprint allows comparing join/leave and repeated sessions.
+    if (hasUserId) {
+      const userFingerprint = (await digest(secret, "flc-zoom-test-user:" + p!.user_id)).slice(0, 16);
+      console.info("FLC Zoom test identity fingerprint:", userFingerprint);
+    } else {
+      console.info("FLC Zoom test identity fingerprint: unavailable");
+    }
     // Compare Zoom event's meeting ID to a pre-registered testing meeting.
     // Use privileged server credentials only; never log meeting IDs or keys.
     const eventPayload = payload.payload as { object?: { id?: unknown } } | undefined;
