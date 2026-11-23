@@ -100,6 +100,11 @@ BEGIN
   FROM public.flc_lead_campaign_agents ca
   WHERE ca.campaign_rule_id=v_rule.id AND ca.agent_id=p_agent_id
     AND ca.enabled
+    AND EXISTS (
+      SELECT 1 FROM public.flc_lead_agent_presence pr
+      WHERE pr.agent_id=ca.agent_id AND pr.is_available=true
+        AND pr.lease_expires_at > clock_timestamp()
+    )
     AND public.flc_agent_in_owner_team(v_lead.owner_leader_id,ca.agent_id)
     AND (v_lead.state_code IS NULL OR
          NOT (v_lead.state_code=ANY(ca.excluded_states)))
@@ -114,6 +119,11 @@ BEGIN
   SELECT ca.agent_id INTO v_agent
   FROM public.flc_lead_campaign_agents ca
   WHERE ca.campaign_rule_id=v_rule.id AND ca.enabled
+    AND EXISTS (
+      SELECT 1 FROM public.flc_lead_agent_presence pr
+      WHERE pr.agent_id=ca.agent_id AND pr.is_available=true
+        AND pr.lease_expires_at > clock_timestamp()
+    )
     AND public.flc_agent_in_owner_team(v_lead.owner_leader_id,ca.agent_id)
     AND ca.agent_id IS DISTINCT FROM v_old_agent
     AND (v_lead.state_code IS NULL OR NOT (v_lead.state_code=ANY(ca.excluded_states)))
@@ -137,6 +147,16 @@ BEGIN
      WHERE aa.agent_id=ca.agent_id) NULLS FIRST,
     ca.agent_id
   LIMIT 1;
+ END IF;
+
+ -- Serialize with status change to unavailable; recheck lease immediately before handoff.
+ IF v_agent IS NOT NULL THEN
+   PERFORM 1 FROM public.flc_lead_agent_presence pr
+   WHERE pr.agent_id=v_agent AND pr.is_available=true
+     AND pr.lease_expires_at>clock_timestamp() FOR UPDATE;
+   IF NOT FOUND THEN
+      RAISE EXCEPTION 'Agent is not currently connected and Disponible';
+   END IF;
  END IF;
 
  -- Explicit assignments are also subject to cap; do not allow manual bypass.
