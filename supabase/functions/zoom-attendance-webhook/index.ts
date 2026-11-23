@@ -55,6 +55,8 @@ Deno.serve(async (request) => {
 
   if (payload.event === "meeting.participant_joined" ||
       payload.event === "meeting.participant_left") {
+    // Log only the verified event TYPE. No names, email, meeting IDs or token.
+    console.info("FLC Zoom verified event:", payload.event);
     // Fail closed: do not equate a display name with an Academy user.
     // Next phase must securely associate Zoom participant identity to an agent,
     // verify account and authorized meeting, and reconcile join/leave.
