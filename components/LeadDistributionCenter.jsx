@@ -8,6 +8,50 @@ function LeadDistributionCenter({ user, setPage }) {
   const [historyError,setHistoryError]=React.useState('');
   const [query,setQuery]=React.useState('');
   const [status,setStatus]=React.useState('all');
+  const [participating,setParticipating]=React.useState(false);
+  const [availability,setAvailability]=React.useState(false);
+  const [availableBusy,setAvailableBusy]=React.useState(false);
+  const [availabilityError,setAvailabilityError]=React.useState('');
+  const availableRef=React.useRef(false);
+
+  React.useEffect(()=>{
+    let active=true;
+    availableRef.current=false;
+    setAvailability(false);
+    setParticipating(false);
+    if(!user?.id)return;
+    window.flcSupabase.rpc('flc_my_lead_participation').then(({data,error})=>{
+      if(active&&!error)setParticipating(!!data);
+    });
+    return ()=>{active=false;};
+  },[user?.id]);
+
+  const setDisponible=async next=>{
+    if(availableBusy||!participating)return;
+    setAvailableBusy(true);setAvailabilityError('');
+    try{
+      const {data,error:err}=await window.flcSupabase.rpc('flc_set_my_lead_availability',{p_available:next});
+      if(err)throw err;
+      const ok=!!(Array.isArray(data)?data[0]?.is_available:data?.is_available);
+      availableRef.current=ok;setAvailability(ok);
+    }catch(e){
+      setAvailabilityError('No se pudo cambiar disponibilidad. Verifica acceso y conexión.');
+    }finally{setAvailableBusy(false);}
+  };
+
+  React.useEffect(()=>{
+    if(!availability||!user?.id)return;
+    // The server lease expires after 90 seconds if no heartbeat arrives.
+    const timer=setInterval(async()=>{
+      if(!availableRef.current)return;
+      const {data,error:err}=await window.flcSupabase.rpc('flc_set_my_lead_availability',{p_available:true});
+      if(err||!(Array.isArray(data)?data[0]?.is_available:data?.is_available)){
+        availableRef.current=false;setAvailability(false);
+        setAvailabilityError('Disponibilidad vencida o conexión interrumpida. Actívala nuevamente.');
+      }
+    },45000);
+    return()=>clearInterval(timer);
+  },[availability,user?.id]);
   const labels={new:'Nuevo',assigned:'Asignado',working:'En proceso',
     appointment:'Cita',sold:'Venta cerrada',recycle_pending:'Pendiente de reasignar',
     archived:'Archivado'};
@@ -58,6 +102,15 @@ function LeadDistributionCenter({ user, setPage }) {
     <div className="breadcrumb">FLC Academy / <span>Lead Distribution Center</span></div>
     <h1 className="page-title">Lead <em>Distribution Center</em></h1>
     <p className="page-sub">Gestión de leads e historial de actividades dentro de FLC Academy.</p>
+    {participating&&<div className="card flc-leads-presence" aria-label="Disponibilidad para recibir leads">
+      <div><strong>Recepción de leads</strong>
+      <p>{availability?'Disponible en Academy. Recibirás leads solo si Zoom confirma tu presencia.':'No disponible: no recibirás leads nuevos.'}</p></div>
+      <button type="button" className={availability?'btn-secondary':'btn-green'}
+        onClick={()=>setDisponible(!availability)} disabled={availableBusy}>
+        {availableBusy?'Guardando…':availability?'Pasar a No disponible':'Estoy Disponible'}
+      </button>
+      {availabilityError&&<p role="alert" className="flc-leads-error">{availabilityError}</p>}
+    </div>}
     <div className="flc-leads-summary">
       <div className="card"><span>Leads visibles</span><strong>{leads.length}</strong></div>
       <div className="card"><span>Asignados</span><strong>{leads.filter(x=>x.assigned_agent_id).length}</strong></div>
