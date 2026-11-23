@@ -104,6 +104,7 @@ BEGIN
       SELECT 1 FROM public.flc_lead_agent_presence pr
       WHERE pr.agent_id=ca.agent_id AND pr.is_available=true
         AND pr.lease_expires_at > clock_timestamp()
+        AND public.flc_zoom_presence_verified(ca.agent_id,v_lead.owner_leader_id)
     )
     AND public.flc_agent_in_owner_team(v_lead.owner_leader_id,ca.agent_id)
     AND (v_lead.state_code IS NULL OR
@@ -123,6 +124,7 @@ BEGIN
       SELECT 1 FROM public.flc_lead_agent_presence pr
       WHERE pr.agent_id=ca.agent_id AND pr.is_available=true
         AND pr.lease_expires_at > clock_timestamp()
+        AND public.flc_zoom_presence_verified(ca.agent_id,v_lead.owner_leader_id)
     )
     AND public.flc_agent_in_owner_team(v_lead.owner_leader_id,ca.agent_id)
     AND ca.agent_id IS DISTINCT FROM v_old_agent
@@ -149,13 +151,15 @@ BEGIN
   LIMIT 1;
  END IF;
 
- -- Serialize with status change to unavailable; recheck lease immediately before handoff.
+ -- Recheck app lease AND verified Zoom presence immediately before handoff.
  IF v_agent IS NOT NULL THEN
    PERFORM 1 FROM public.flc_lead_agent_presence pr
    WHERE pr.agent_id=v_agent AND pr.is_available=true
-     AND pr.lease_expires_at>clock_timestamp() FOR UPDATE;
+     AND pr.lease_expires_at>clock_timestamp()
+     AND public.flc_zoom_presence_verified(v_agent,v_lead.owner_leader_id)
+   FOR UPDATE;
    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Agent is not currently connected and Disponible';
+      RAISE EXCEPTION 'Agent is not connected, Disponible and verified in authorized Zoom';
    END IF;
  END IF;
 
