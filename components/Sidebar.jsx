@@ -10,6 +10,7 @@ function Sidebar({ page, setPage, user, rankLabel, onLogout, t, lang, isLeader, 
     { id: 'challenges',icon: 'sparkle',  label: 'Retos FLC' },
     { id: 'badges',    icon: 'star',     label: 'Mis insignias' },
     { id: 'production',icon: 'clipboard',label: 'FLC Production Center' },
+    { id: 'leads', icon: 'users', label: 'FLC Lead Distribution Center' },
     ...(isLeader&&user.role!=='admin'?[{id:'team',icon:'handshake',label:'Mi equipo'}]:[]),
     ...(user.role==='admin'?[
       {id:'ceo',icon:'chart',label:'Panel de Dirección FLC'},
