@@ -1,8 +1,17 @@
 # FLC Lead Distribution — Pilot acceptance tests (not yet run)
 
 ## Deployment order / dependencies
-007 (leader hierarchy) -> 038 (leads, assignments, event log) -> 039 (worked-agent ledger) -> 040 (secure read-only RPCs) -> 041 (assignment/activity RPCs) -> 042 (append-only daily log).
+007 (leader hierarchy) -> 038 (leads, assignments, event log) -> 039 (worked-agent ledger) -> 040 (secure read-only RPCs) -> 040a (approved participation, Academy availability, Zoom presence) -> 041 (assignment/activity RPCs) -> 042 (append-only daily log).
 All files contain PREPARATION and are **not installed** by a GitHub commit. Deploy only on isolated staging after reviewing compatibility with existing production Supabase schema.
+
+## New hard distribution gate: EVERY condition must be true
+- Admin explicitly enrolled agent in the specific campaign.
+- Agent authenticated in Academy and pressed Disponible; server lease renewed every 45s, expires after 90s absent heartbeat.
+- Agent has verified current presence in the correct leader-authorized Zoom session (trusted webhook/API, not self-report).
+- Agent in the owning leader's team, eligible state, campaign capacity, and never previously worked same lead.
+- Assignment blocked if Zoom is not verified or stale. No automatic distribution to offline/unapproved staff.
+
+**Not implemented yet:** real Zoom API/webhook verifier (including participant-to-Academy identity matching) and actual staged tests. Without it, assignment must fail closed rather than guessing attendance.
 
 ## Test scenarios before going live
 1. **Tenant isolation**: Agent A does not see lead owned by another leader unless currently assigned; subleaders see only authorized downline; admin visibility audited.
