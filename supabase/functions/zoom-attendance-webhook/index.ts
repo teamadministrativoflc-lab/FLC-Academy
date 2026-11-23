@@ -15,6 +15,10 @@ async function digest(secret: string, data: string): Promise<string> {
   const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(data));
   return hex(new Uint8Array(signature));
 }
+async function sha256Hex(value: string): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", encoder.encode(value));
+  return hex(new Uint8Array(hash));
+}
 function safeEqual(a: string, b: string) {
   const x = encoder.encode(a), y = encoder.encode(b);
   if (x.length !== y.length) return false;
@@ -71,25 +75,65 @@ Deno.serve(async (request) => {
       console.warn("FLC Zoom meeting match: database_not_configured");
       return json({ error: "meeting_verification_unavailable" }, 503);
     }
+    // Lookup only the registered meeting; return no identifying details to logs.
     const lookup = new URL("/rest/v1/flc_zoom_test_meetings", supabaseUrl);
-    lookup.searchParams.set("select", "authorized");
+    lookup.searchParams.set("select", "id,authorized");
     lookup.searchParams.set("zoom_meeting_id", "eq." + String(incomingMeetingId));
     lookup.searchParams.set("limit", "1");
-    const meetingResponse = await fetch(lookup, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Accept: "application/json" }
-    });
+    const dbHeaders = {
+      apikey: serviceKey, Authorization: `Bearer ${serviceKey}`,
+      Accept: "application/json",
+    };
+    let meetingResponse: Response;
+    try {
+      meetingResponse = await fetch(lookup, { headers: dbHeaders });
+    } catch {
+      console.warn("FLC Zoom meeting match: database_unreachable");
+      return json({ error: "meeting_verification_unavailable" }, 503);
+    }
     if (!meetingResponse.ok) {
       console.warn("FLC Zoom meeting match: database_lookup_failed", meetingResponse.status);
       return json({ error: "meeting_verification_unavailable" }, 503);
     }
-    const matches = await meetingResponse.json() as Array<{ authorized: boolean }>;
-    const meetingMatched = matches.length === 1;
-    console.info("FLC Zoom meeting match:", meetingMatched ? "matched" : "not_matched");
-    // Never enable presence until verified agent mapping is implemented.
-    return json({ accepted: true, presence_updated: false });
-    // Fail closed: do not equate a display name with an Academy user.
-    // Next phase must securely associate Zoom participant identity to an agent,
-    // verify account and authorized meeting, and reconcile join/leave.
+    const matches = await meetingResponse.json() as Array<{ id: string; authorized: boolean }>;
+    const matched = matches.length === 1;
+    console.info("FLC Zoom meeting match:", matched ? "matched" : "not_matched");
+
+    // Log only a SHA-256 fingerprint of the authenticated raw payload.
+    // This deduplicates byte-for-byte redelivery without storing names,
+    // participant IDs, email or the meeting's raw Zoom ID in receipts.
+    // Unregistered meetings are ignored and never stored.
+    if (!matched) return json({ accepted: true, presence_updated: false });
+
+    const receiptUrl = new URL("/rest/v1/flc_zoom_test_event_receipts", supabaseUrl);
+    receiptUrl.searchParams.set("on_conflict", "zoom_event_id");
+    const receipt = {
+      zoom_event_id: await sha256Hex(rawBody),
+      event_type: payload.event,
+      meeting_id: matches[0].id,
+      outcome: matches[0].authorized ? "identity_unverified" : "meeting_unauthorized",
+    };
+    let receiptResponse: Response;
+    try {
+      receiptResponse = await fetch(receiptUrl, {
+        method: "POST",
+        headers: {
+          ...dbHeaders, "Content-Type": "application/json",
+          Prefer: "resolution=ignore-duplicates,return=minimal",
+        },
+        body: JSON.stringify(receipt),
+      });
+    } catch {
+      console.warn("FLC Zoom receipt: database_unreachable");
+      return json({ error: "receipt_storage_unavailable" }, 503);
+    }
+    if (!receiptResponse.ok) {
+      console.warn("FLC Zoom receipt: storage_failed", receiptResponse.status);
+      return json({ error: "receipt_storage_unavailable" }, 503);
+    }
+    console.info("FLC Zoom receipt: stored_or_duplicate");
+    // Fail closed: presence, eligibility and lead distribution remain untouched
+    // until authenticated participant-to-agent mapping is implemented.
     return json({ accepted: true, presence_updated: false });
   }
   return json({ accepted: true, ignored: true });
