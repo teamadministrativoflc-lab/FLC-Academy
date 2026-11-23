@@ -61,6 +61,16 @@ Deno.serve(async (request) => {
       payload.event === "meeting.participant_left") {
     // Log only the verified event TYPE. No names, email, meeting IDs or token.
     console.info("FLC Zoom verified event:", payload.event);
+    // Privacy-safe identity diagnostics. Never log participant values.
+    const p = (payload.payload as { object?: { participant?: Record<string, unknown> } } | undefined)?.object?.participant;
+    const hasUserId = typeof p?.user_id === "string" && p.user_id.trim().length > 0;
+    const hasParticipantId = typeof p?.id === "string" && p.id.trim().length > 0;
+    const hasEmail = typeof p?.email === "string" && p.email.trim().length > 0;
+    console.info("FLC Zoom identity fields:", JSON.stringify({
+      user_id_present: hasUserId,
+      participant_id_present: hasParticipantId,
+      email_present: hasEmail
+    }));
     // Compare Zoom event's meeting ID to a pre-registered testing meeting.
     // Use privileged server credentials only; never log meeting IDs or keys.
     const eventPayload = payload.payload as { object?: { id?: unknown } } | undefined;
