@@ -103,6 +103,7 @@ function App() {
 
   const pages = {
     production: <ProductionCenter user={user} setPage={setPage} />,
+    leads: <LeadDistributionCenter user={user} setPage={setPage} />,
     ranks: user.role === 'admin' ? <RankCenter setPage={setPage} /> : null,
     badges: <BadgeGallery user={user} setPage={setPage} />,
     challenges: <ChallengeCenter user={user} setPage={setPage} isLeader={isLeader} />,
