@@ -54,8 +54,8 @@ Deno.serve(async req=>{
       headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=representation"},
       body:JSON.stringify({
         source_crm:"auraflow",source_contact_id:id,source_campaign:campaign,
-        first_name:first(c.first_name,c.firstName,p.first_name,full.split(/\\s+/)[0]),
-        last_name:first(c.last_name,c.lastName,p.last_name,full.split(/\\s+/).slice(1).join(" ")),
+        first_name:first(c.first_name,c.firstName,p.first_name,full.split(/\s+/)[0]),
+        last_name:first(c.last_name,c.lastName,p.last_name,full.split(/\s+/).slice(1).join(" ")),
         phone:phone||null,email:email||null,lead_state:first(p.flc_state,c.state,p.state)||null
       }),
       signal:AbortSignal.timeout(12000)
