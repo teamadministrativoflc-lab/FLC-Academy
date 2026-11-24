@@ -17,7 +17,7 @@ Deno.serve(async req=>{
   if(!token||!locationId)return reply({error:"missing_configuration"},503);
   let upstream:Response;
   try{
-    const locRes=await fetch("https://services.leadconnectorhq.com/locations/"+encodeURIComponent(locationId),{headers:{"Authorization":"Bearer "+token,"Version":"2021-07-28","Accept":"application/json"},signal:AbortSignal.timeout(12000)});
+    const locRes=await fetch("https://services.leadconnectorhq.com/locations/"+encodeURIComponent(locationId),{headers:{"Authorization":"Bearer "+token,"Version":"v3","Accept":"application/json"},signal:AbortSignal.timeout(12000)});
     if(!locRes.ok)return reply({connected:false,step:"location",highlevel_status:locRes.status},502);
     const companyId=(await locRes.json())?.location?.companyId;
     if(!companyId)return reply({connected:false,error:"company_id_unavailable"},502);
