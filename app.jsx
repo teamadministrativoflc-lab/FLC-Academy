@@ -1,3 +1,30 @@
+function ZoomIdentityLinkButton({lang}) {
+  const [busy,setBusy]=React.useState(false);
+  const [message,setMessage]=React.useState('');
+  const start=async()=>{
+    if(busy)return;
+    setBusy(true);setMessage('');
+    try{
+      const {data:session,error:sessionError}=await window.flcSupabase.auth.getSession();
+      if(sessionError||!session?.session?.access_token)throw new Error('Inicia sesión nuevamente en FLC Academy.');
+      const {data,error}=await window.flcSupabase.functions.invoke('zoom-identity-start',{body:{}});
+      if(error) {
+        let detail='';
+        try {detail=(await error.context?.json?.())?.error||'';} catch {}
+        throw new Error(detail||error.message||'No se pudo iniciar la autorización.');
+      }
+      if(!data?.authorization_url||!data.authorization_url.startsWith('https://zoom.us/oauth/authorize?'))
+        throw new Error('La autorización no devolvió una dirección válida.');
+      // Navigation occurs only on the user's explicit click.
+      window.location.assign(data.authorization_url);
+    }catch(e){setMessage(e?.message||'Error al conectar Zoom.');setBusy(false);}
+  };
+  return <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+    <button type="button" onClick={start} disabled={busy} style={{padding:'8px 12px',border:'1px solid #ced8cc',borderRadius:8,background:'#f8fbf7',color:'#244530',fontWeight:600,cursor:busy?'wait':'pointer'}}>{busy?'Conectando…':lang==='en'?'Link my Zoom':'Vincular mi Zoom'}</button>
+    {message&&<span role="alert" style={{fontSize:12,color:'#a32626',maxWidth:270}}>{message}</span>}
+  </div>;
+}
+
 function App() {
   const [mobileOpen,setMobileOpen]=React.useState(false);
   const [mobileDockOpen,setMobileDockOpen]=React.useState(false);
@@ -128,6 +155,7 @@ function App() {
         <div className="topbar">
           <button type="button" className="mobile-menu-button" aria-label="Abrir menú principal" aria-expanded={mobileOpen} onClick={()=>setMobileOpen(true)}>☰ <span>Menú</span></button>
           <div className="topbar-actions">
+            <ZoomIdentityLinkButton lang={lang} />
             <div className="lang-toggle">
               <button className={lang === 'es' ? 'active' : ''} onClick={() => setLang('es')}>ES</button>
               <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
