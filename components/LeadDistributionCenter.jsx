@@ -1,6 +1,6 @@
 // FLC Lead Distribution Center — read-only preview using new protected RPCs.
 // No automatic agent assignment or outbound CRM update is enabled.
-function LeadDistributionCenter({user}) {
+function LeadDistributionCenter({user,setPage}) {
   const [leads,setLeads]=React.useState([]);
   const [selected,setSelected]=React.useState(null);
   const [events,setEvents]=React.useState([]);
@@ -54,6 +54,18 @@ function LeadDistributionCenter({user}) {
       p_lead_id:selected.lead_id,p_limit:100
     });
     if(!result.error)setEvents(result.data||[]);
+  };
+  const openSaleForm=()=>{
+    if(!selected||!canLogActivity||!setPage)return;
+    window.sessionStorage.setItem('flc_new_sale_from_lead',JSON.stringify({
+      leadId:selected.lead_id,
+      contactName:selected.contact_name||'',
+      campaign:selected.source_campaign||'',
+      sourceContactId:selected.external_lead_id||'',
+      agentId:user.id
+    }));
+    setSelected(null);
+    setPage('production');
   };
   const describeEvent=e=>{
     const d=e.details||{};
@@ -254,6 +266,13 @@ function LeadDistributionCenter({user}) {
           {rrTestResult&&<p role="status" style={{marginTop:10}}>{rrTestResult}</p>}
         </div>}
 
+        {canLogActivity&&<div style={{borderTop:'1px solid #dce8d7',marginTop:16,paddingTop:16}}>
+          <h3>Venta del cliente</h3>
+          <p style={{fontSize:13,color:'#677466'}}>Registra compañía, producto, AP, estatus y split en FLC Production Center. No creará la venta hasta que confirmes el formulario.</p>
+          <button type="button" className="btn-green" onClick={openSaleForm}>Reportar venta</button>
+          {selected.external_lead_id?.startsWith('FLC-PRUEBA-')&&
+            <p style={{fontSize:12,color:'#92550c'}}>Este contacto es ficticio: no envíes una venta de prueba a la producción oficial.</p>}
+        </div>}
         {canLogActivity&&<div style={{borderTop:'1px solid #dce8d7',marginTop:16,paddingTop:16}}>
           <h3>Registrar gestión</h3>
           <p style={{fontSize:13,color:'#677466'}}>Registra la gestión manualmente después de llamar con Aloware o tu teléfono. Por ahora, solo queda guardada en FLC Academy.</p>
