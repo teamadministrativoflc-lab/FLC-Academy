@@ -13,6 +13,8 @@ function LeadDistributionCenter({user}) {
   const [testAgentId,setTestAgentId]=React.useState('');
   const [testBusy,setTestBusy]=React.useState(false);
   const [testMessage,setTestMessage]=React.useState('');
+  const [rrTestBusy,setRrTestBusy]=React.useState(false);
+  const [rrTestResult,setRrTestResult]=React.useState('');
   const [pendingQueue,setPendingQueue]=React.useState([]);
   const [pendingLoading,setPendingLoading]=React.useState(false);
   const [pendingError,setPendingError]=React.useState('');
@@ -84,6 +86,23 @@ function LeadDistributionCenter({user}) {
     setTestBusy(false);
     if(err)setTestMessage('No se pudo asignar: '+err.message);
     else{setTestMessage('Contacto de prueba asignado correctamente.');setSelected(null);await load();}
+  };
+  const simulateSafeAssignment=async()=>{
+    if(!selected||!synthetic||rrTestBusy||!isAdmin)return;
+    setRrTestBusy(true);setRrTestResult('');
+    const {data,error:err}=await window.flcSupabase.rpc('flc_distribution_round_robin_assign_test',{
+      p_lead_id:selected.lead_id
+    });
+    setRrTestBusy(false);
+    if(err){setRrTestResult('Error: '+err.message);return;}
+    if(data?.assigned){
+      setRrTestResult('Contacto ficticio asignado a '+(data.agent_name||'agente elegible'));
+      await load();
+    }else if(data?.reason==='hold_no_available_agent'){
+      setRrTestResult('Correcto: en espera porque no hay agentes disponibles. No se asignó el contacto.');
+    }else{
+      setRrTestResult('Sin asignación: '+(data?.reason||'sin resultado'));
+    }
   };
   const waitingCount=pendingQueue.filter(l=>l.decision==='hold_no_available_agent').length;
   const readyCount=pendingQueue.filter(l=>l.decision==='ready_for_manual_review').length;
@@ -183,6 +202,14 @@ function LeadDistributionCenter({user}) {
           </button>
           {testAgents.length===0&&<p>No hay agentes elegibles y verificados para esta campaña/estado.</p>}
           {testMessage&&<p role="status">{testMessage}</p>}
+        </div>}
+        {isAdmin&&synthetic&&!selected.assigned_agent_id&&<div style={{borderTop:'1px solid #dce8d7',marginTop:14,paddingTop:14}}>
+          <h3>Prueba del motor Round Robin</h3>
+          <p>Solo admite contactos ficticios. Si no hay agentes disponibles, el lead permanece en espera. Si hay uno elegible, esta acción sí lo asigna dentro de la academia.</p>
+          <button type="button" className="btn-secondary" onClick={simulateSafeAssignment} disabled={rrTestBusy}>
+            {rrTestBusy?'Comprobando…':'Ejecutar Round Robin de prueba'}
+          </button>
+          {rrTestResult&&<p role="status" style={{marginTop:10}}>{rrTestResult}</p>}
         </div>}
         <h3>Historial</h3>
         {eventsLoading?<p>Cargando…</p>:events.length===0?<p>No hay eventos registrados todavía.</p>:
