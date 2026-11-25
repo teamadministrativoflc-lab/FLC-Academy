@@ -45,23 +45,28 @@ Deno.serve(async req=>{
   );
   const project=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if(!project||!key)return reply({error:"database_not_configured"},503);
-  const url=new URL("/rest/v1/flc_distribution_leads",project);
-  url.searchParams.set("on_conflict","source_crm,source_contact_id");
+  // Atomic stored procedure updates the same CRM contact and records
+  // campaign transitions. It never creates/reassigns an agent assignment.
+  const url=new URL("/rest/v1/rpc/flc_distribution_ingest_contact",project);
   let resp:Response;
   try{
     resp=await fetch(url.toString(),{
       method:"POST",
-      headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=representation"},
+      headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
       body:JSON.stringify({
-        source_crm:"auraflow",source_contact_id:id,source_campaign:campaign,
-        first_name:first(c.first_name,c.firstName,p.first_name,full.split(/\s+/)[0]),
-        last_name:first(c.last_name,c.lastName,p.last_name,full.split(/\s+/).slice(1).join(" ")),
-        phone:phone||null,email:email||null,lead_state:first(p.flc_state,c.state,p.state)||null
+        p_source_crm:"auraflow",p_source_contact_id:id,p_campaign:campaign,
+        p_first_name:first(c.first_name,c.firstName,p.first_name,full.split(/\s+/)[0]),
+        p_last_name:first(c.last_name,c.lastName,p.last_name,full.split(/\s+/).slice(1).join(" ")),
+        p_phone:phone||null,p_email:email||null,
+        p_state:first(p.flc_state,c.state,p.state)||null
       }),
       signal:AbortSignal.timeout(12000)
     });
   }catch{return reply({error:"database_unavailable"},503)}
-  if(!resp.ok){console.error("FLC distribution insert HTTP",resp.status);return reply({error:"database_insert_failed"},503)}
-  const rows=await resp.json() as Array<{id:string}>;
-  return reply({accepted:true,inserted:rows.length>0,duplicate:rows.length===0,assignment_created:false});
+  if(!resp.ok){
+    console.error("FLC distribution ingest RPC HTTP",resp.status);
+    return reply({error:"database_ingest_failed"},503);
+  }
+  const result=await resp.json();
+  return reply(result);
 });
