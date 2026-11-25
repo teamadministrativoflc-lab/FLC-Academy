@@ -13,6 +13,9 @@ function LeadDistributionCenter({user}) {
   const [testAgentId,setTestAgentId]=React.useState('');
   const [testBusy,setTestBusy]=React.useState(false);
   const [testMessage,setTestMessage]=React.useState('');
+  const [pendingQueue,setPendingQueue]=React.useState([]);
+  const [pendingLoading,setPendingLoading]=React.useState(false);
+  const [pendingError,setPendingError]=React.useState('');
   const date=x=>x?new Date(x).toLocaleString('es-US',{timeZone:'America/New_York',dateStyle:'medium',timeStyle:'short'}):'—';
   const load=React.useCallback(async()=>{
     setLoading(true);setError('');
@@ -32,11 +35,21 @@ function LeadDistributionCenter({user}) {
     });
     return()=>{active=false};
   },[selected?.lead_id]);
+  const isAdmin=user?.role==='admin';
+  const loadPending=React.useCallback(async()=>{
+    if(!isAdmin)return;
+    setPendingLoading(true);setPendingError('');
+    const {data,error:err}=await window.flcSupabase.rpc('flc_distribution_preview_pending',{p_limit:200});
+    if(err){setPendingError('No se pudo evaluar la cola: '+err.message);setPendingQueue([]);}
+    else setPendingQueue(data||[]);
+    setPendingLoading(false);
+  },[isAdmin]);
+  React.useEffect(()=>{loadPending();},[loadPending]);
+  const refreshAll=async()=>{await Promise.all([load(),loadPending()]);};
   const filtered=leads.filter(l=>{
     const s=[l.contact_name,l.source_campaign,l.external_lead_id,l.assigned_agent_name,l.lead_state].join(' ').toLowerCase();
     return (status==='all'||l.lifecycle_status===status)&&s.includes(query.toLowerCase());
   });
-  const isAdmin=user?.role==='admin';
   const synthetic=!!selected && selected.external_lead_id?.startsWith('FLC-PRUEBA-') && selected.source_campaign!=='FLC_TEST_INTEGRACION';
   React.useEffect(()=>{
     if(!selected||!synthetic||!isAdmin||selected.assigned_agent_id){setTestAgents([]);setTestAgentId('');return;}
@@ -60,6 +73,8 @@ function LeadDistributionCenter({user}) {
     if(err)setTestMessage('No se pudo asignar: '+err.message);
     else{setTestMessage('Contacto de prueba asignado correctamente.');setSelected(null);await load();}
   };
+  const waitingCount=pendingQueue.filter(l=>l.decision==='hold_no_available_agent').length;
+  const readyCount=pendingQueue.filter(l=>l.decision==='ready_for_manual_review').length;
   return <div className="flc-leads-center">
     <div className="breadcrumb">FLC Academy / <span>Lead Distribution Center</span></div>
     <h1 className="page-title">Lead <em>Distribution Center</em></h1>
@@ -81,7 +96,7 @@ function LeadDistributionCenter({user}) {
           <option value="closed">Cerrado</option>
           <option value="invalid">Inválido</option>
         </select>
-        <button type="button" className="btn-secondary" onClick={load} disabled={loading}>Actualizar</button>
+        <button type="button" className="btn-secondary" onClick={refreshAll} disabled={loading||pendingLoading}>Actualizar</button>
       </div>
       {loading?<p role="status">Cargando leads…</p>:
       error?<p role="alert" style={{color:'#a33'}}>{error}</p>:
@@ -97,6 +112,26 @@ function LeadDistributionCenter({user}) {
       </table>{filtered.length===0&&<p>No hay leads visibles con estos filtros.</p>}</div>}
       {!isAdmin&&<p style={{marginTop:12,fontSize:13}}>Por seguridad, solo puedes consultar leads asignados a tu cuenta.</p>}
     </div>
+    {isAdmin&&<div className="card" style={{marginTop:20}}>
+      <h2 style={{fontSize:22,marginBottom:8}}>Cola de distribución (simulación)</h2>
+      <p style={{color:'#677466',marginBottom:12}}>Consulta de solo lectura. No asigna contactos ni envía mensajes. Los agentes inactivos no son elegibles.</p>
+      {pendingLoading?<p role="status">Evaluando leads pendientes…</p>:
+       pendingError?<p role="alert" style={{color:'#a33'}}>{pendingError}</p>:<>
+         <div style={{display:'flex',gap:24,flexWrap:'wrap',marginBottom:12}}>
+           <span><strong>{pendingQueue.length}</strong> pendientes evaluados</span>
+           <span><strong>{waitingCount}</strong> en espera</span>
+           <span><strong>{readyCount}</strong> con agentes elegibles</span>
+         </div>
+         <div style={{overflowX:'auto'}}><table className="flc-leads-table">
+           <thead><tr><th>Contacto</th><th>Campaña</th><th>Estado</th><th>Elegibles</th><th>Decisión</th></tr></thead>
+           <tbody>{pendingQueue.map(p=><tr key={p.lead_id}>
+             <td>{p.contact_name||'Sin nombre'}</td><td>{p.source_campaign}</td>
+             <td>{p.state_code||'Sin estado'}</td><td>{p.eligible_count}</td>
+             <td>{p.decision==='hold_no_available_agent'?'En espera — ningún agente disponible':'Listo para revisión manual'}</td>
+           </tr>)}</tbody>
+         </table>{pendingQueue.length===0&&<p>No hay leads pendientes.</p>}</div>
+       </>}
+    </div>}
     {selected&&<div className="flc-leads-modal-backdrop" role="presentation" onClick={()=>setSelected(null)}>
       <section className="flc-leads-modal card" role="dialog" aria-modal="true" aria-label="Detalle del lead" onClick={e=>e.stopPropagation()}>
         <div className="flc-leads-modal-header"><div><strong>{selected.contact_name||'Lead'}</strong>
