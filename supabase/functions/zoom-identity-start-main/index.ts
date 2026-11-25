@@ -1,8 +1,16 @@
 // FLC Academy MAIN: user-initiated Zoom identity OAuth start.
 // Does not change agent roles, availability, campaigns or lead distribution.
 const enc = new TextEncoder();
+// Browser requests from FLC Academy require an OPTIONS preflight.
+// Authentication still requires a valid Academy session bearer token.
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type, x-supabase-api-version",
+  "Access-Control-Max-Age": "3600",
+};
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
-  status, headers: { "content-type": "application/json", "cache-control": "no-store" },
+  status, headers: { ...corsHeaders, "content-type": "application/json", "cache-control": "no-store" },
 });
 const env = (name: string) => Deno.env.get(name)?.trim() ?? "";
 const hex = (b: Uint8Array) => Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
@@ -10,6 +18,7 @@ async function hash(input: string) {
   return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(input))));
 }
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   const supabase = env("SUPABASE_URL");
   const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
