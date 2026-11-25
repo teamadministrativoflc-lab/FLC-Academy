@@ -46,7 +46,7 @@ qualified AS (
 )
 SELECT l.id,l.contact_name,l.source_campaign,l.lead_state,l.received_at,
        count(q.agent_id)::bigint,
-       max(q.agent_id) FILTER (WHERE q.rn=1),
+       (max(q.agent_id::text) FILTER (WHERE q.rn=1))::uuid,
        max(q.agent_name) FILTER (WHERE q.rn=1),
        CASE WHEN count(q.agent_id)=0 THEN 'hold_no_available_agent'
          ELSE 'ready_for_manual_review' END
