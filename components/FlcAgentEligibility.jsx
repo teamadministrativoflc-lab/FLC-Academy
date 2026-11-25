@@ -11,6 +11,11 @@ function FlcAgentEligibility({agents}) {
   const [saving,setSaving]=React.useState(false);
   const [error,setError]=React.useState('');
   const [notice,setNotice]=React.useState('');
+  const [simCampaign,setSimCampaign]=React.useState('IUL_TIKTOK_ESPANOL');
+  const [simState,setSimState]=React.useState('NY');
+  const [simLoading,setSimLoading]=React.useState(false);
+  const [simResults,setSimResults]=React.useState(null);
+  const [simError,setSimError]=React.useState('');
   const allStates='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
   const reload=React.useCallback(async()=>{
     setLoading(true);setError('');
@@ -43,6 +48,15 @@ function FlcAgentEligibility({agents}) {
     if(err)setError('No se pudieron guardar las reglas: '+err.message);
     else{setNotice('Reglas guardadas. La distribución automática continúa desactivada.');await reload();}
     setSaving(false);
+  };
+  const simulate=async()=>{
+    setSimLoading(true);setSimError('');setSimResults(null);
+    const {data,error:err}=await window.flcSupabase.rpc('flc_distribution_simulate_eligibility',{
+      p_campaign_code:simCampaign,p_state_code:simState
+    });
+    if(err)setSimError('No se pudo ejecutar la simulación: '+err.message);
+    else setSimResults(data||[]);
+    setSimLoading(false);
   };
   return <div className="card" style={{marginTop:20}}>
     <h2 style={{fontSize:23,marginBottom:8}}>Campañas y estados por agente</h2>
@@ -78,6 +92,40 @@ function FlcAgentEligibility({agents}) {
       {notice&&<p role="status" style={{color:'#246d34',marginTop:12}}>{notice}</p>}
     </>}
     {error&&<p role="alert" style={{color:'#ab3030',marginTop:12}}>{error}</p>}
+    <section style={{marginTop:26,paddingTop:20,borderTop:'1px solid #dce8d7'}}>
+      <h2 style={{fontSize:23,marginBottom:8}}>Simulador de elegibilidad (solo lectura)</h2>
+      <p style={{color:'#69776b'}}>Comprueba qué agentes cumplen campaña, estado y verificación manual. No crea asignaciones ni modifica disponibilidad.</p>
+      <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'end',margin:'18px 0'}}>
+        <label style={{display:'grid',gap:6}}>Campaña
+          <select value={simCampaign} onChange={e=>{setSimCampaign(e.target.value);setSimResults(null);}}
+            style={{padding:10,borderRadius:8,border:'1px solid #c8d5c4'}}>
+            {campaigns.filter(c=>c.enabled).map(c=><option key={c.code} value={c.code}>{c.label}</option>)}
+          </select>
+        </label>
+        <label style={{display:'grid',gap:6}}>Estado
+          <select value={simState} onChange={e=>{setSimState(e.target.value);setSimResults(null);}}
+            style={{padding:10,borderRadius:8,border:'1px solid #c8d5c4'}}>
+            {allStates.map(code=><option key={code} value={code}>{code}</option>)}
+          </select>
+        </label>
+        <button type="button" className="btn-green" onClick={simulate} disabled={simLoading||!simCampaign}>
+          {simLoading?'Simulando…':'Simular distribución'}
+        </button>
+      </div>
+      {simError&&<p role="alert" style={{color:'#b33'}}>{simError}</p>}
+      {simResults&&<div style={{overflowX:'auto'}}>
+        <p><strong>{simResults.filter(x=>x.eligible).length}</strong> agentes elegibles de {simResults.length} evaluados.</p>
+        <table style={{width:'100%',borderCollapse:'collapse'}}><thead><tr>
+          <th style={{textAlign:'left',padding:9}}>Agente</th><th>Campaña</th><th>Estado</th><th>Zoom</th><th>Elegible</th>
+        </tr></thead><tbody>{simResults.map(x=><tr key={x.agent_id} style={{borderTop:'1px solid #dce8d7'}}>
+          <td style={{padding:9}}>{x.agent_name}</td>
+          <td style={{textAlign:'center'}}>{x.campaign_allowed?'✅':'—'}</td>
+          <td style={{textAlign:'center'}}>{x.state_allowed?'✅':'—'}</td>
+          <td style={{textAlign:'center'}}>{x.verified_on_zoom?'✅':'—'}</td>
+          <td style={{textAlign:'center'}}>{x.eligible?'✅':'No'}</td>
+        </tr>)}</tbody></table>
+      </div>}
+    </section>
   </div>;
 }
 window.FlcAgentEligibility=FlcAgentEligibility;
