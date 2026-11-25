@@ -33,7 +33,7 @@ function FlcLeadActivation({user}) {
       setError('No se pudo '+(next?'activar':'pausar')+' a '+a.full_name+': '+err.message);
     }else{
       const updated=Array.isArray(data)?data[0]:data;
-      if(updated)setStatuses(v=>({...v,[a.id],...{[a.id]:updated}}));
+      if(updated)setStatuses(v=>({...v,[a.id]:updated}));
       await load();
     }
     setBusy(v=>({...v,[a.id]:false}));
