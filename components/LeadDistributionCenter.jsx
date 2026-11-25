@@ -26,6 +26,10 @@ function LeadDistributionCenter({user,setPage}) {
   const [rrLoading,setRrLoading]=React.useState(false);
   const [rrError,setRrError]=React.useState('');
   const [followUps,setFollowUps]=React.useState([]);
+  const [completedFollowUps,setCompletedFollowUps]=React.useState([]);
+  const [showCompletedFollowUps,setShowCompletedFollowUps]=React.useState(false);
+  const [completeBusyId,setCompleteBusyId]=React.useState(null);
+  const [completionFeedback,setCompletionFeedback]=React.useState('');
   const [followUpsBusy,setFollowUpsBusy]=React.useState(false);
   const [followUpsError,setFollowUpsError]=React.useState('');
   // Agent-owned manual activity; no external CRM write is performed here.
@@ -99,7 +103,7 @@ function LeadDistributionCenter({user,setPage}) {
   };
   const describeEvent=e=>{
     const d=e.details||{};
-    const names={agent_call_logged:'Llamada',agent_note_logged:'Nota',agent_follow_up_logged:'Seguimiento',agent_appointment_logged:'Cita'};
+    const names={agent_call_logged:'Llamada',agent_note_logged:'Nota',agent_follow_up_logged:'Seguimiento',agent_appointment_logged:'Cita',agent_follow_up_completed:'Seguimiento completado'};
     const results={no_answer:'No contestó',voicemail:'Buzón de voz',interested:'Interesado',not_interested:'No interesado',callback:'Volver a llamar',appointment:'Cita programada',wrong_number:'Número equivocado',other:'Otro'};
     if(!names[e.event_type])return e.event_type;
     return [names[e.event_type],results[d.result],d.note,d.follow_up_at?'Próxima gestión: '+date(d.follow_up_at):''].filter(Boolean).join(' · ');
@@ -146,10 +150,16 @@ function LeadDistributionCenter({user,setPage}) {
   const loadFollowUps=React.useCallback(async()=>{
     if(isAdmin)return;
     setFollowUpsBusy(true);setFollowUpsError('');
-    const {data,error:err}=await window.flcSupabase.rpc('flc_distribution_my_follow_ups',{p_limit:200});
+
+    const [pending,completed]=await Promise.all([
+      window.flcSupabase.rpc('flc_distribution_my_follow_ups',{p_limit:200}),
+      window.flcSupabase.rpc('flc_distribution_my_completed_follow_ups',{p_limit:100})
+    ]);
     setFollowUpsBusy(false);
-    if(err){setFollowUps([]);setFollowUpsError('No se pudo cargar seguimientos: '+err.message);}
-    else setFollowUps(data||[]);
+    if(pending.error){setFollowUps([]);setFollowUpsError('No se pudo cargar seguimientos: '+pending.error.message);}
+    else setFollowUps(pending.data||[]);
+    if(completed.error){setCompletedFollowUps([]);setFollowUpsError(x=>x||'No se pudo cargar el historial completado: '+completed.error.message);}
+    else setCompletedFollowUps(completed.data||[]);
   },[isAdmin,user?.id]);
   React.useEffect(()=>{loadFollowUps();},[loadFollowUps]);
   const refreshAll=async()=>{await Promise.all([load(),loadPending(),loadRoundRobin(),loadFollowUps()]);};
@@ -228,6 +238,26 @@ function LeadDistributionCenter({user,setPage}) {
   };
   const followUpNow=Date.now();
   const overdueFollowUps=followUps.filter(f=>new Date(f.due_at).getTime()<followUpNow).length;
+  const completeFollowUp=async f=>{
+    if(completeBusyId||isAdmin)return;
+    if(!window.confirm('¿Ya realizaste este seguimiento o cita? Se conservará el historial original.'))return;
+    const note=window.prompt('Nota de cierre (opcional):','');
+    if(note===null)return;
+    setCompletionFeedback('');setCompleteBusyId(f.event_id);
+    const {error:err}=await window.flcSupabase.rpc('flc_distribution_complete_follow_up',{
+      p_lead_id:f.lead_id,p_event_id:f.event_id,p_note:note.trim()||null
+    });
+    setCompleteBusyId(null);
+    if(err){setCompletionFeedback('No se pudo completar: '+err.message);return;}
+    setCompletionFeedback('Seguimiento completado y guardado en el historial.');
+    await loadFollowUps();
+    if(selected?.lead_id===f.lead_id){
+      const {data}=await window.flcSupabase.rpc('flc_distribution_lead_timeline',{
+        p_lead_id:f.lead_id,p_limit:100
+      });
+      if(data)setEvents(data);
+    }
+  };
   const openFollowUp=f=>{
     const lead=leads.find(l=>l.lead_id===f.lead_id);
     if(lead)setSelected(lead);
@@ -258,11 +288,35 @@ function LeadDistributionCenter({user,setPage}) {
                 <td>{f.activity_type==='agent_appointment_logged'?'Cita':'Seguimiento'}</td>
                 <td>{date(f.due_at)}</td>
                 <td>{overdue?'Vencido':'Próximo'}</td>
-                <td><button type="button" className="btn-secondary" onClick={()=>openFollowUp(f)}>Abrir lead</button></td>
+                <td>
+                  <button type="button" className="btn-secondary" onClick={()=>openFollowUp(f)}>Abrir lead</button>
+                  {' '}
+                  <button type="button" className="btn-green" disabled={!!completeBusyId}
+                    onClick={()=>completeFollowUp(f)}>
+                    {completeBusyId===f.event_id?'Guardando…':'Marcar completado'}
+                  </button>
+                </td>
               </tr>;
             })}</tbody>
           </table></div>
-          {followUps.length===0&&<p>No hay seguimientos programados en tus leads asignados.</p>}
+          {followUps.length===0&&<p>No hay seguimientos pendientes en tus leads asignados.</p>}
+          {completionFeedback&&<p role="status">{completionFeedback}</p>}
+          <button type="button" className="btn-secondary" style={{marginTop:12}}
+            onClick={()=>setShowCompletedFollowUps(v=>!v)}>
+            {showCompletedFollowUps?'Ocultar historial':'Ver historial de completados'} ({completedFollowUps.length})
+          </button>
+          {showCompletedFollowUps&&<div style={{overflowX:'auto',marginTop:12}}>
+            <table className="flc-leads-table">
+              <thead><tr><th>Cliente</th><th>Fecha prevista (ET)</th><th>Completado (ET)</th><th>Nota</th></tr></thead>
+              <tbody>{completedFollowUps.map(f=><tr key={f.event_id}>
+                <td>{f.contact_name||'Sin nombre'}</td>
+                <td>{date(f.due_at)}</td>
+                <td>{date(f.completed_at)}</td>
+                <td>{f.completion_note||'—'}</td>
+              </tr>)}</tbody>
+            </table>
+            {!completedFollowUps.length&&<p>Todavía no hay seguimientos completados.</p>}
+          </div>}
         </>}
     </div>}
     <div className="card">
