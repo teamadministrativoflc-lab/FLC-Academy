@@ -66,6 +66,9 @@ function ProductionCenter({user,setPage}) {
  const [canViewTeam,setCanViewTeam]=React.useState(user.role==='admin');
  const [verificationBusy,setVerificationBusy]=React.useState(false);
  const [apEditing,setApEditing]=React.useState(null);
+ const [splitEditing,setSplitEditing]=React.useState(null);
+ const [splitCorrections,setSplitCorrections]=React.useState([]);
+ const [splitSaving,setSplitSaving]=React.useState(false);
  const [apCorrections,setApCorrections]=React.useState([]);
  const [apCorrectionsLoadError,setApCorrectionsLoadError]=React.useState('');
  const [approvalFilter,setApprovalFilter]=React.useState('pending');
@@ -88,6 +91,10 @@ function ProductionCenter({user,setPage}) {
    all=all.concat(data||[]);if(!data||data.length<1000)break;
   }
   setRows(all);
+  const splitReview=await window.flcSupabase.from('flc_policy_split_corrections')
+    .select('id,policy_id,requested_by,previous_allocations,requested_allocations,reason,state,created_at')
+    .order('created_at',{ascending:false}).limit(250);
+  setSplitCorrections(splitReview.error?[]:(splitReview.data||[]));
   const corrections=await window.flcSupabase.from('flc_policy_ap_corrections')
    .select('id,policy_id,requested_by,previous_ap,requested_ap,reason,state,reviewed_by,reviewed_at,created_at')
    .order('created_at',{ascending:false}).limit(500);
@@ -370,6 +377,53 @@ function ProductionCenter({user,setPage}) {
    .map(status=>({status,policies:filteredPolicies.filter(r=>(r.status||'Sin estatus')===status)}));
 
  const openHistory=async row=>{setHistoryPolicy(row);const {data,error}=await window.flcSupabase.from('flc_policy_status_history').select('id,changed_at,changed_by,previous_status,new_status,previous_approved_on,new_approved_on,previous_issue_paid_on,new_issue_paid_on').eq('policy_id',row.id).order('changed_at',{ascending:false});setHistoryRows(error?[]:data||[]);};
+ const editSplit=row=>{
+  const shares=allocations(row);
+  setSplitEditing({id:row.id,client:row.client_name,primary:row.agent_id,
+    verified:!!row.issue_paid_verified_at,reason:'',
+    participants:shares.map(s=>({agent_id:s.agent_id,pct:String(s.pct)}))});
+  setError('');setNotice('');
+ };
+ const updateSplit=(i,key,value)=>setSplitEditing(p=>({...p,
+   participants:p.participants.map((a,j)=>i===j?{...a,[key]:value}:a)}));
+ const addSplit=()=>setSplitEditing(p=>p.participants.length>=5?p:{...p,
+   participants:[...p.participants,{agent_id:'',pct:'0'}]});
+ const removeSplit=i=>setSplitEditing(p=>({...p,participants:p.participants.filter((_,j)=>j!==i)}));
+ const saveSplit=async()=>{
+  if(!splitEditing||splitSaving)return;
+  const parts=splitEditing.participants;
+  const vals=parts.map(p=>Number(p.pct));
+  const total=vals.reduce((a,b)=>a+b,0);
+  if(parts.length<1||parts.length>5||parts[0].agent_id!==splitEditing.primary
+     ||parts.some((p,i)=>!p.agent_id||!Number.isFinite(vals[i])||vals[i]<=0||vals[i]>100||Math.round(vals[i]*100)!==vals[i]*100)
+     ||new Set(parts.map(p=>p.agent_id)).size!==parts.length
+     ||Math.abs(total-100)>0.001){setError('Revisa participantes: máximo 5, porcentajes positivos, sin duplicados y suma exacta de 100%.');return;}
+  if(splitEditing.reason.trim().length<5){setError('Explica la corrección en al menos cinco caracteres.');return;}
+  setSplitSaving(true);setError('');setNotice('');
+  const {data,error:err}=await window.flcSupabase.rpc('flc_request_policy_split_correction',{
+    p_policy_id:splitEditing.id,
+    p_allocations:parts.map(p=>({agent_id:p.agent_id,pct:Number(p.pct)})),
+    p_reason:splitEditing.reason.trim()
+  });
+  setSplitSaving(false);
+  if(err){setError('No se pudo corregir el split: '+err.message);return;}
+  setSplitEditing(null);
+  setNotice(data==='pending'?'Split enviado a Administración. No se modificó la póliza hasta aprobación.':'Split corregido en la misma póliza; no se creó otra venta. Si estaba verificada, requiere nueva verificación administrativa.');
+  await load();setStandingsRefresh(n=>n+1);
+  window.dispatchEvent(new Event('flc:new-sale'));
+ };
+ const reviewSplit=async(req,approve)=>{
+  if(splitSaving)return;
+  if(!window.confirm((approve?'¿Aprobar':'¿Rechazar')+' la corrección de split? Al aprobar una venta verificada, deberá verificarse nuevamente.'))return;
+  setSplitSaving(true);setError('');setNotice('');
+  const {error:err}=await window.flcSupabase.rpc('flc_admin_review_policy_split_correction',{
+    p_request_id:req.id,p_approve:approve
+  });
+  setSplitSaving(false);
+  if(err){setError('No se pudo revisar el split: '+err.message);return;}
+  setNotice(approve?'Split aprobado. Verifica nuevamente Issue Paid después de revisar el crédito.':'Corrección de split rechazada.');
+  await load();setStandingsRefresh(n=>n+1);window.dispatchEvent(new Event('flc:new-sale'));
+ };
  const editAP=row=>{setApEditing({id:row.id,client_name:row.client_name,oldAp:row.annual_premium,newAp:String(row.annual_premium),reason:'',verified:!!row.issue_paid_verified_at});setError('');setNotice('');};
  const saveAP=async()=>{if(!apEditing||apSaving)return;
   const amount=Number(apEditing.newAp),reason=apEditing.reason.trim();
@@ -777,7 +831,46 @@ function ProductionCenter({user,setPage}) {
 <h3 style={{margin:0,fontSize:18,color:'#174b30'}}>{group.status}</h3>
 <span style={{fontSize:13,fontWeight:700,color:'#3c5945'}}>{group.policies.length} {group.policies.length===1?'póliza':'pólizas'} · AP: {fmt(group.policies.reduce((sum,p)=>sum+Number(p.annual_premium||0),0))}</span>
 </div>
-<div className="flc-policy-table-scroll"><table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}><thead><tr>{['Fecha','Cliente','Núm. póliza','Agente principal','Compañía','Producto','Lead','Estado','AP','Split','Acción'].map(k=><th key={k} style={{padding:10,textAlign:'left',borderBottom:'1px solid #ddd'}}>{k}</th>)}</tr></thead><tbody>{group.policies.map(r=><tr key={r.id}>{[r.submitted_on,r.client_name,r.policy_number||'Pendiente',primaryAgentName(r),r.carrier,r.product_type,r.lead_source,r.status,'$'+Number(r.annual_premium).toLocaleString('en-US'),splitDisplay(r)].map((v,i)=><td key={i} style={{padding:10,borderBottom:'1px solid #eee'}}>{v}</td>)}<td style={{padding:10,borderBottom:'1px solid #eee'}}>{(user.role==='admin'||r.agent_id===user.id)&&<button type="button" onClick={()=>editAP(r)} style={{background:'#e9f4e7',color:'#145732',padding:9,border:'1px solid #a7bca7',borderRadius:8,fontWeight:700,marginRight:5}}>✎ Corregir AP</button>} {(user.role==='admin'||r.agent_id===user.id)&&<button onClick={()=>editStatus(r)} type="button" style={{background:"#176b3b",color:"#fff",padding:"9px",borderRadius:8,fontWeight:700}}>✎ Cambiar estado</button>} <button type="button" onClick={()=>openHistory(r)} style={{background:"#edf4ef",color:"#145732",padding:"9px",border:"1px solid #a7bca7",borderRadius:8,fontWeight:700}}>◷ Historial</button> {user.role==='admin'&&r.status==='Issue Paid'&&<button type="button" disabled={verificationBusy} onClick={()=>verifyPaid(r,!r.issue_paid_verified_at)} style={{display:'block',marginTop:6,padding:9,background:r.issue_paid_verified_at?'#f6ecec':'#154d2b',color:r.issue_paid_verified_at?'#8c3c3c':'white',border:'1px solid #8fae97',borderRadius:8,fontWeight:700,cursor:'pointer'}}>{r.issue_paid_verified_at?'✓ Verificada · Retirar':'✓ Verificar Issue Paid'}</button>}</td></tr>)}</tbody></table></div></section>)}{!rows.length?<p>Aún no hay pólizas registradas.</p>:!filteredPolicies.length&&<p>No hay pólizas que coincidan con la búsqueda y el estatus seleccionado.</p>}</React.Fragment>}</div>}
+<div className="flc-policy-table-scroll"><table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}><thead><tr>{['Fecha','Cliente','Núm. póliza','Agente principal','Compañía','Producto','Lead','Estado','AP','Split','Acción'].map(k=><th key={k} style={{padding:10,textAlign:'left',borderBottom:'1px solid #ddd'}}>{k}</th>)}</tr></thead><tbody>{group.policies.map(r=><tr key={r.id}>{[r.submitted_on,r.client_name,r.policy_number||'Pendiente',primaryAgentName(r),r.carrier,r.product_type,r.lead_source,r.status,'$'+Number(r.annual_premium).toLocaleString('en-US'),splitDisplay(r)].map((v,i)=><td key={i} style={{padding:10,borderBottom:'1px solid #eee'}}>{v}</td>)}<td style={{padding:10,borderBottom:'1px solid #eee'}}>{(user.role==='admin'||r.agent_id===user.id)&&<button type="button" onClick={()=>editAP(r)} style={{background:'#e9f4e7',color:'#145732',padding:9,border:'1px solid #a7bca7',borderRadius:8,fontWeight:700,marginRight:5}}>✎ Corregir AP</button>} {(user.role==='admin'||r.agent_id===user.id)&&<button type="button" onClick={()=>editSplit(r)} style={{background:'#eff6e8',color:'#145732',padding:9,border:'1px solid #a7bca7',borderRadius:8,fontWeight:700,marginRight:5}}>✎ Corregir split</button>} {(user.role==='admin'||r.agent_id===user.id)&&<button onClick={()=>editStatus(r)} type="button" style={{background:"#176b3b",color:"#fff",padding:"9px",borderRadius:8,fontWeight:700}}>✎ Cambiar estado</button>} <button type="button" onClick={()=>openHistory(r)} style={{background:"#edf4ef",color:"#145732",padding:"9px",border:"1px solid #a7bca7",borderRadius:8,fontWeight:700}}>◷ Historial</button> {user.role==='admin'&&r.status==='Issue Paid'&&<button type="button" disabled={verificationBusy} onClick={()=>verifyPaid(r,!r.issue_paid_verified_at)} style={{display:'block',marginTop:6,padding:9,background:r.issue_paid_verified_at?'#f6ecec':'#154d2b',color:r.issue_paid_verified_at?'#8c3c3c':'white',border:'1px solid #8fae97',borderRadius:8,fontWeight:700,cursor:'pointer'}}>{r.issue_paid_verified_at?'✓ Verificada · Retirar':'✓ Verificar Issue Paid'}</button>}</td></tr>)}</tbody></table></div></section>)}{!rows.length?<p>Aún no hay pólizas registradas.</p>:!filteredPolicies.length&&<p>No hay pólizas que coincidan con la búsqueda y el estatus seleccionado.</p>}</React.Fragment>}</div>}
+ {splitEditing&&<section style={{padding:16,background:'#fff',border:'2px solid #9abc99',borderRadius:10,marginTop:16}}>
+  <h3 style={{marginTop:0}}>Corregir split · {splitEditing.client}</h3>
+  <p>Se actualizará la póliza existente, sin registrar otra venta. La suma debe ser 100%.</p>
+  {splitEditing.verified&&<p style={{color:'#92550c',fontWeight:700}}>Issue Paid verificada: un agente enviará la solicitud para aprobación administrativa.</p>}
+  <div style={{display:'grid',gap:9}}>
+   {splitEditing.participants.map((p,i)=><div key={i} style={{display:'flex',gap:9,flexWrap:'wrap',alignItems:'end'}}>
+    {field(i===0?'Agente principal':'Participante '+(i+1),
+      <select disabled={i===0} value={p.agent_id} onChange={e=>updateSplit(i,'agent_id',e.target.value)} style={{...inp,maxWidth:270}}>
+       {i===0?<option value={p.agent_id}>{primaryAgentName({agent_id:p.agent_id})}</option>:<>
+        <option value="">Seleccionar agente</option>
+        {splitPartners.filter(a=>a.id!==splitEditing.primary).map(a=><option key={a.id} value={a.id}>{a.full_name}</option>)}
+       </>}
+      </select>)}
+    {field('Porcentaje (%)',<input type="number" min="0.01" max="100" step="0.01" value={p.pct}
+      onChange={e=>updateSplit(i,'pct',e.target.value)} style={{...inp,width:110}}/>)}
+    {i>0&&<button type="button" onClick={()=>removeSplit(i)}>Quitar</button>}
+   </div>)}
+  </div>
+  <p><strong>Total: {splitEditing.participants.reduce((n,p)=>n+Number(p.pct||0),0).toFixed(2)}%</strong></p>
+  {splitEditing.participants.length<5&&<button type="button" onClick={addSplit} style={{padding:9,marginBottom:12}}>+ Agregar agente</button>}
+  {field('Motivo de la corrección',<textarea rows={2} maxLength={500} value={splitEditing.reason}
+    onChange={e=>setSplitEditing(p=>({...p,reason:e.target.value}))} style={inp}
+    placeholder="Ej.: olvidé agregar a mi compañero en el split"/>)}
+  <div style={{display:'flex',gap:10,marginTop:12}}>
+   <button type="button" disabled={splitSaving} onClick={saveSplit} className="btn-green">{splitSaving?'Guardando…':'Guardar corrección de split'}</button>
+   <button type="button" onClick={()=>setSplitEditing(null)}>Cancelar</button>
+  </div>
+ </section>}
+ {user.role==='admin'&&splitCorrections.filter(x=>x.state==='pending').length>0&&
+  <section style={{padding:16,background:'#fff',border:'1px solid #b8c9ad',borderRadius:10,marginTop:16}}>
+   <h3>Solicitudes de corrección de split</h3>
+   {splitCorrections.filter(x=>x.state==='pending').map(req=><div key={req.id} style={{borderTop:'1px solid #ddd',padding:10}}>
+    <strong>{rows.find(r=>r.id===req.policy_id)?.client_name||'Póliza'}</strong>
+    <p>Motivo: {req.reason}</p>
+    <p>Solicitado: {(req.requested_allocations||[]).map(a=>((agents.find(p=>p.id===a.agent_id)||splitPartners.find(p=>p.id===a.agent_id))?.full_name||a.agent_id)+' '+a.pct+'%').join(' / ')}</p>
+    <button type="button" disabled={splitSaving} onClick={()=>reviewSplit(req,true)} style={{marginRight:9}}>Aprobar</button>
+    <button type="button" disabled={splitSaving} onClick={()=>reviewSplit(req,false)}>Rechazar</button>
+   </div>)}
+  </section>}
  {apEditing&&<section style={{padding:16,background:'#fff',border:'2px solid #9abc99',borderRadius:10,marginTop:16}}>
   <h3 style={{marginTop:0}}>Corregir AP · {apEditing.client_name}</h3>
   <p>AP actual: <strong>{fmt(apEditing.oldAp)}</strong>. La fecha de sometimiento y los splits permanecerán intactos.</p>
