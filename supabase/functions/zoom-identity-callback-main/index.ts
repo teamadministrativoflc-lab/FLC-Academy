@@ -24,8 +24,12 @@ Deno.serve(async (req) => {
   const redirectUri = env("ZOOM_OAUTH_REDIRECT_URI");
   if (!supabase || !serviceKey || !clientId || !clientSecret || !redirectUri)
     return json({ error: "oauth_server_not_configured" }, 503);
-  // Prevent redirect URI mixups, including localhost and unexpected hosts.
-  if (redirectUri !== `${u.origin}${u.pathname}`) return json({ error: "invalid_redirect_configuration" }, 503);
+  // Validate against the project's canonical public Supabase URL, rather than
+  // request origin (Edge runtime or reverse proxy may expose an internal host).
+  // Also require the callback path to match. Never accept arbitrary redirects.
+  const expectedRedirect = new URL("/functions/v1/zoom-identity-callback", supabase);
+  if (redirectUri !== expectedRedirect.href || u.pathname !== expectedRedirect.pathname)
+    return json({ error: "invalid_redirect_configuration" }, 503);
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
   const states = new URL("/rest/v1/flc_zoom_identity_oauth_states", supabase);
   states.searchParams.set("state_hash", `eq.${await sha256(state)}`);
