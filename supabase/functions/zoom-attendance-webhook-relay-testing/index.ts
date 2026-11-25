@@ -150,20 +150,30 @@ Deno.serve(async (request) => {
       return json({ error: "receipt_storage_unavailable" }, 503);
     }
     console.info("FLC Zoom receipt: stored_or_duplicate");
-    // Relay only if the event came from an authorized meeting and has a stable
-    // Zoom user ID. Never transmit email, names, participant ID or Zoom tokens.
+    // Zoom's participant.user_id is a meeting-scoped identifier and MUST NOT
+    // be matched to OAuth /users/me.id. Use participant_user_id (Zoom account ID).
+    // Legacy participant.id can be used only as a persistent fallback when present.
+    // Both fields may be blank for attendees external to the host account.
+    // Never use display name, meeting-scoped user_id or email as an identity fallback.
+    const persistentZoomUserId =
+      (typeof p?.participant_user_id === "string" && p.participant_user_id.trim()
+        ? p.participant_user_id.trim() : "") ||
+      (typeof p?.id === "string" && p.id.trim() ? p.id.trim() : "");
+    console.info("FLC Zoom persistent identity:", persistentZoomUserId ? "present" : "unavailable");
+    // Relay only if the event came from an authorized meeting and has a
+    // persistent Zoom account identifier. Never transmit emails, names or tokens.
     // This has NO writes to agent availability or distribution.
     const relaySecret = Deno.env.get("FLC_ZOOM_RELAY_SECRET") ?? "";
     const target = "https://fvhbzutxaoujtnnjzhlk.supabase.co/functions/v1/flc-zoom-evidence-receiver";
     const eventTs = (payload as { event_ts?: unknown }).event_ts;
     const eventMs = typeof eventTs === "number" ? eventTs : NaN;
-    if (matches[0].authorized && hasUserId && relaySecret.length >= 32
+    if (matches[0].authorized && persistentZoomUserId && relaySecret.length >= 32
       && Number.isFinite(eventMs) && Math.abs(Date.now() - eventMs) <= 120000) {
       const body = JSON.stringify({
         source_event_hash: receipt.zoom_event_id,
         meeting_alias: "Nationwide - Sala de Trabajo",
         event_type: payload.event,
-        zoom_user_id: p!.user_id,
+        zoom_user_id: persistentZoomUserId,
         source_event_at: new Date(eventMs).toISOString(),
       });
       const relayTimestamp = String(Math.floor(Date.now() / 1000));
