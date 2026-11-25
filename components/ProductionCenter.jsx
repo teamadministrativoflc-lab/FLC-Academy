@@ -497,24 +497,43 @@ function ProductionCenter({user,setPage}) {
  if(form.partners.length>=2&&creditsError){setError('Para registrar 3 a 5 participantes, Administración debe ejecutar primero SQL 019 en Supabase.');return;}
  const params={p_client_name:form.client,p_policy_number:form.number||null,p_carrier:form.carrier,p_product_type:form.product,p_lead_source:form.source,p_lead_source_other:form.source==='Otro'?form.other:null,p_annual_premium:Number(form.ap),p_submitted_on:form.date};
  setSaving(true);
- const {data:createdPolicyId,error}=form.partners.length>=2
- ?await window.flcSupabase.rpc('flc_create_policy_multi',{...params,p_allocations:all.map(p=>({agent_id:p.agentId,pct:Number(p.pct)})),p_primary_agent_id:user.role==='admin'?primaryAgent:null})
- :await window.flcSupabase.rpc(user.role==='admin'?'flc_admin_create_policy':'flc_create_policy',{...params,p_split_agent_id:form.partners[0]?.agentId||null,p_split_primary_pct:Number(form.primaryPct),...(user.role==='admin'?{p_agent_id:primaryAgent}:{})});
- if(error){setSaving(false);setError(error.code==='23505'?'Ya hay una póliza registrada con ese número y compañía.':error.message||'No se pudo guardar.');return;}
- // Creation succeeded: never retry INSERT after a follow-up status error.
- let dispositionError=null;
- if(form.initialDisposition!=='Sometida'){
-  const result=await window.flcSupabase.rpc('flc_set_initial_policy_disposition',{
-   p_policy_id:createdPolicyId,p_disposition:form.initialDisposition
+ let createdPolicyId=null,dispositionError=null;
+ if(leadSaleDraft){
+  // One atomic server operation creates the sale, links the original lead and writes audit history.
+  // The database refuses synthetic leads, duplicate lead sales and unauthorized agents.
+  const result=await window.flcSupabase.rpc('flc_distribution_create_linked_sale',{
+   p_lead_id:leadSaleDraft.leadId,p_carrier:form.carrier,p_product_type:form.product,
+   p_policy_number:form.number||null,p_annual_premium:Number(form.ap),
+   p_submitted_on:form.date,p_disposition:form.initialDisposition,
+   p_allocations:all.map(p=>({agent_id:p.agentId,pct:Number(p.pct)}))
   });
-  dispositionError=result.error;
+  if(result.error){
+   setSaving(false);
+   setError('No se registró la venta vinculada: '+result.error.message);
+   return;
+  }
+  createdPolicyId=result.data;
+ }else{
+  const {data,error}=form.partners.length>=2
+  ?await window.flcSupabase.rpc('flc_create_policy_multi',{...params,p_allocations:all.map(p=>({agent_id:p.agentId,pct:Number(p.pct)})),p_primary_agent_id:user.role==='admin'?primaryAgent:null})
+  :await window.flcSupabase.rpc(user.role==='admin'?'flc_admin_create_policy':'flc_create_policy',{...params,p_split_agent_id:form.partners[0]?.agentId||null,p_split_primary_pct:Number(form.primaryPct),...(user.role==='admin'?{p_agent_id:primaryAgent}:{})});
+  if(error){setSaving(false);setError(error.code==='23505'?'Ya hay una póliza registrada con ese número y compañía.':error.message||'No se pudo guardar.');return;}
+  createdPolicyId=data;
+  // Creation succeeded: never retry INSERT after a follow-up status error.
+  if(form.initialDisposition!=='Sometida'){
+   const result=await window.flcSupabase.rpc('flc_set_initial_policy_disposition',{
+    p_policy_id:createdPolicyId,p_disposition:form.initialDisposition
+   });
+   dispositionError=result.error;
+  }
  }
  setSaving(false);
+ setLeadSaleDraft(null);
  setForm(blank());setTab('list');await load();window.dispatchEvent(new Event('flc:new-sale'));
  if(dispositionError){
   setError('La póliza SÍ quedó registrada, pero no se pudo guardar el estado inicial. NO la registres otra vez. Abre Mis ventas → Cambiar estado. Detalle: '+dispositionError.message);
  }else{
-  setNotice('Póliza registrada correctamente. Estado inicial: '+form.initialDisposition+'. La AP solo contará como Issue Paid verificada después de la revisión administrativa.');
+  setNotice('Póliza registrada correctamente'+(leadSaleDraft?' y vinculada al lead original':'')+'. Estado inicial: '+form.initialDisposition+'. La AP solo contará como Issue Paid verificada después de la revisión administrativa.');
  }
 };
  const primaryAgentName=r=>{
@@ -840,7 +859,7 @@ function ProductionCenter({user,setPage}) {
    Origen: Lead Distribution Center · {leadSaleDraft.contactName||'Cliente'} · {leadSaleDraft.campaign}.
    {leadSaleDraft.sourceContactId?.startsWith('FLC-PRUEBA-')
       ?' Contacto ficticio: registro de póliza bloqueado para proteger la producción.'
-      :' Revisa los datos antes de guardar. La vinculación automática al lead se habilitará después de implementar la validación de duplicados.'}
+      :' La póliza se vinculará al lead original mediante una operación protegida contra duplicados.'}
  </p>}
  {tab==='new'?<form onSubmit={submit} style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16,background:'#fff',padding:22,border:'1px solid #dae5d9',borderRadius:12}}>
  {field('Nombre del cliente *',<input required maxLength={150} style={inp} value={form.client} onChange={e=>change('client',e.target.value)}/>)}
