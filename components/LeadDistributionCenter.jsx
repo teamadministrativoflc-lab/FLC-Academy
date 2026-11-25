@@ -21,6 +21,48 @@ function LeadDistributionCenter({user}) {
   const [rrQueue,setRrQueue]=React.useState([]);
   const [rrLoading,setRrLoading]=React.useState(false);
   const [rrError,setRrError]=React.useState('');
+  // Agent-owned manual activity; no external CRM write is performed here.
+  const [activityKind,setActivityKind]=React.useState('call');
+  const [activityResult,setActivityResult]=React.useState('no_answer');
+  const [activityNote,setActivityNote]=React.useState('');
+  const [activityFollowUp,setActivityFollowUp]=React.useState('');
+  const [activityBusy,setActivityBusy]=React.useState(false);
+  const [activityFeedback,setActivityFeedback]=React.useState('');
+  const canLogActivity=!!selected && !isAdminAccount(user) && selected.assigned_agent_id===user?.id;
+  function isAdminAccount(u){return u?.role==='admin';}
+  React.useEffect(()=>{
+    setActivityKind('call');setActivityResult('no_answer');setActivityNote('');
+    setActivityFollowUp('');setActivityFeedback('');
+  },[selected?.lead_id]);
+  const saveActivity=async()=>{
+    if(!selected||!canLogActivity||activityBusy)return;
+    if((activityKind==='appointment'||activityKind==='follow_up')&&!activityFollowUp){
+      setActivityFeedback('Selecciona fecha y hora del seguimiento.');return;
+    }
+    const followUp=activityFollowUp?new Date(activityFollowUp).toISOString():null;
+    setActivityBusy(true);setActivityFeedback('');
+    const {error:err}=await window.flcSupabase.rpc('flc_distribution_record_activity',{
+      p_lead_id:selected.lead_id,p_kind:activityKind,
+      p_result:activityKind==='call'?activityResult:null,
+      p_note:activityNote.trim()||null,p_follow_up_at:followUp
+    });
+    setActivityBusy(false);
+    if(err){setActivityFeedback('No se pudo guardar: '+err.message);return;}
+    setActivityFeedback('Gestión guardada en FLC Academy. Sincronización a AuraFlow aún no habilitada.');
+    setActivityNote('');setActivityFollowUp('');
+    const result=await window.flcSupabase.rpc('flc_distribution_lead_timeline',{
+      p_lead_id:selected.lead_id,p_limit:100
+    });
+    if(!result.error)setEvents(result.data||[]);
+  };
+  const describeEvent=e=>{
+    const d=e.details||{};
+    const names={agent_call_logged:'Llamada',agent_note_logged:'Nota',agent_follow_up_logged:'Seguimiento',agent_appointment_logged:'Cita'};
+    const results={no_answer:'No contestó',voicemail:'Buzón de voz',interested:'Interesado',not_interested:'No interesado',callback:'Volver a llamar',appointment:'Cita programada',wrong_number:'Número equivocado',other:'Otro'};
+    if(!names[e.event_type])return e.event_type;
+    return [names[e.event_type],results[d.result],d.note,d.follow_up_at?'Próxima gestión: '+date(d.follow_up_at):''].filter(Boolean).join(' · ');
+  };
+
   const date=x=>x?new Date(x).toLocaleString('es-US',{timeZone:'America/New_York',dateStyle:'medium',timeStyle:'short'}):'—';
   const load=React.useCallback(async()=>{
     setLoading(true);setError('');
@@ -211,9 +253,47 @@ function LeadDistributionCenter({user}) {
           </button>
           {rrTestResult&&<p role="status" style={{marginTop:10}}>{rrTestResult}</p>}
         </div>}
+
+        {canLogActivity&&<div style={{borderTop:'1px solid #dce8d7',marginTop:16,paddingTop:16}}>
+          <h3>Registrar gestión</h3>
+          <p style={{fontSize:13,color:'#677466'}}>Registra la gestión manualmente después de llamar con Aloware o tu teléfono. Por ahora, solo queda guardada en FLC Academy.</p>
+          <div style={{display:'grid',gap:10,margin:'12px 0'}}>
+            <label>Tipo de gestión
+              <select value={activityKind} onChange={e=>setActivityKind(e.target.value)} style={{display:'block',width:'100%'}}>
+                <option value="call">Llamada</option>
+                <option value="note">Nota</option>
+                <option value="follow_up">Seguimiento</option>
+                <option value="appointment">Cita</option>
+              </select>
+            </label>
+            {activityKind==='call'&&<label>Resultado de llamada
+              <select value={activityResult} onChange={e=>setActivityResult(e.target.value)} style={{display:'block',width:'100%'}}>
+                <option value="no_answer">No contestó</option>
+                <option value="voicemail">Buzón de voz</option>
+                <option value="interested">Interesado</option>
+                <option value="not_interested">No interesado</option>
+                <option value="callback">Volver a llamar</option>
+                <option value="appointment">Cita programada</option>
+                <option value="wrong_number">Número equivocado</option>
+                <option value="other">Otro</option>
+              </select>
+            </label>}
+            {(activityKind==='follow_up'||activityKind==='appointment')&&<label>Fecha y hora de próxima gestión
+              <input type="datetime-local" value={activityFollowUp} onChange={e=>setActivityFollowUp(e.target.value)} style={{display:'block',width:'100%'}}/>
+            </label>}
+            <label>Notas de la gestión
+              <textarea value={activityNote} maxLength={2000} rows={3} onChange={e=>setActivityNote(e.target.value)}
+                placeholder="Información del contacto y próximos pasos" style={{display:'block',width:'100%'}}/>
+            </label>
+          </div>
+          <button type="button" className="btn-green" disabled={activityBusy} onClick={saveActivity}>
+            {activityBusy?'Guardando…':'Guardar gestión'}
+          </button>
+          {activityFeedback&&<p role="status" style={{marginTop:10}}>{activityFeedback}</p>}
+        </div>}
         <h3>Historial</h3>
         {eventsLoading?<p>Cargando…</p>:events.length===0?<p>No hay eventos registrados todavía.</p>:
-          events.map(e=><p key={e.event_id}><strong>{e.event_type}</strong> · {date(e.event_at)} · {e.actor_name}</p>)}
+          events.map(e=><p key={e.event_id}><strong>{describeEvent(e)}</strong> · {date(e.event_at)} · {e.actor_name}</p>)}
       </section>
     </div>}
   </div>;
