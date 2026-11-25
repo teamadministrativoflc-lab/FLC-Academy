@@ -25,6 +25,9 @@ function LeadDistributionCenter({user,setPage}) {
   const [rrQueue,setRrQueue]=React.useState([]);
   const [rrLoading,setRrLoading]=React.useState(false);
   const [rrError,setRrError]=React.useState('');
+  const [followUps,setFollowUps]=React.useState([]);
+  const [followUpsBusy,setFollowUpsBusy]=React.useState(false);
+  const [followUpsError,setFollowUpsError]=React.useState('');
   // Agent-owned manual activity; no external CRM write is performed here.
   const [activityKind,setActivityKind]=React.useState('call');
   const [activityResult,setActivityResult]=React.useState('no_answer');
@@ -61,6 +64,7 @@ function LeadDistributionCenter({user,setPage}) {
       p_lead_id:selected.lead_id,p_limit:100
     });
     if(!result.error)setEvents(result.data||[]);
+    await loadFollowUps();
   };
   const voidManualActivity=async e=>{
     if(!selected||!canLogActivity||voidBusy)return;
@@ -79,6 +83,7 @@ function LeadDistributionCenter({user,setPage}) {
       p_lead_id:selected.lead_id,p_limit:100
     });
     if(!result.error)setEvents(result.data||[]);
+    await loadFollowUps();
   };
   const openSaleForm=()=>{
     if(!selected||!canLogActivity||!setPage)return;
@@ -138,7 +143,16 @@ function LeadDistributionCenter({user,setPage}) {
     setRrLoading(false);
   },[isAdmin]);
   React.useEffect(()=>{loadRoundRobin();},[loadRoundRobin]);
-  const refreshAll=async()=>{await Promise.all([load(),loadPending(),loadRoundRobin()]);};
+  const loadFollowUps=React.useCallback(async()=>{
+    if(isAdmin)return;
+    setFollowUpsBusy(true);setFollowUpsError('');
+    const {data,error:err}=await window.flcSupabase.rpc('flc_distribution_my_follow_ups',{p_limit:200});
+    setFollowUpsBusy(false);
+    if(err){setFollowUps([]);setFollowUpsError('No se pudo cargar seguimientos: '+err.message);}
+    else setFollowUps(data||[]);
+  },[isAdmin,user?.id]);
+  React.useEffect(()=>{loadFollowUps();},[loadFollowUps]);
+  const refreshAll=async()=>{await Promise.all([load(),loadPending(),loadRoundRobin(),loadFollowUps()]);};
   const filtered=leads.filter(l=>{
     const s=[l.contact_name,l.source_campaign,l.external_lead_id,l.assigned_agent_name,l.lead_state].join(' ').toLowerCase();
     return (status==='all'||l.lifecycle_status===status)&&s.includes(query.toLowerCase());
@@ -212,6 +226,12 @@ function LeadDistributionCenter({user,setPage}) {
       setRrTestResult('Sin asignación: '+(data?.reason||'sin resultado'));
     }
   };
+  const followUpNow=Date.now();
+  const overdueFollowUps=followUps.filter(f=>new Date(f.due_at).getTime()<followUpNow).length;
+  const openFollowUp=f=>{
+    const lead=leads.find(l=>l.lead_id===f.lead_id);
+    if(lead)setSelected(lead);
+  };
   const waitingCount=pendingQueue.filter(l=>l.decision==='hold_no_available_agent').length;
   const readyCount=pendingQueue.filter(l=>l.decision==='ready_for_manual_review').length;
   return <div className="flc-leads-center">
@@ -223,6 +243,28 @@ function LeadDistributionCenter({user,setPage}) {
       <div className="card"><span>Asignados</span><strong>{leads.filter(l=>l.assigned_agent_id).length}</strong></div>
       <div className="card"><span>Pendientes de asignar</span><strong>{leads.filter(l=>!l.assigned_agent_id).length}</strong></div>
     </div>
+    {!isAdmin&&<div className="card" style={{marginBottom:20}}>
+      <h2 style={{fontSize:22,marginBottom:8}}>Mis seguimientos y citas pendientes</h2>
+      <p style={{color:'#677466',marginBottom:12}}>Agenda registrada manualmente. No genera llamadas ni recordatorios externos.</p>
+      {followUpsBusy?<p role="status">Cargando seguimientos…</p>:
+        followUpsError?<p role="alert">{followUpsError}</p>:<>
+          <p><strong>{followUps.length}</strong> seguimientos y citas registrados · <strong>{overdueFollowUps}</strong> vencidos</p>
+          <div style={{overflowX:'auto'}}><table className="flc-leads-table">
+            <thead><tr><th>Cliente</th><th>Gestión</th><th>Fecha programada (ET)</th><th>Estado</th><th>Acción</th></tr></thead>
+            <tbody>{followUps.map(f=>{
+              const overdue=new Date(f.due_at).getTime()<followUpNow;
+              return <tr key={f.event_id}>
+                <td><strong>{f.contact_name||'Sin nombre'}</strong><small>{f.note||''}</small></td>
+                <td>{f.activity_type==='agent_appointment_logged'?'Cita':'Seguimiento'}</td>
+                <td>{date(f.due_at)}</td>
+                <td>{overdue?'Vencido':'Próximo'}</td>
+                <td><button type="button" className="btn-secondary" onClick={()=>openFollowUp(f)}>Abrir lead</button></td>
+              </tr>;
+            })}</tbody>
+          </table></div>
+          {followUps.length===0&&<p>No hay seguimientos programados en tus leads asignados.</p>}
+        </>}
+    </div>}
     <div className="card">
       <div className="flc-leads-toolbar">
         <input aria-label="Buscar lead" placeholder="Buscar lead, ID o campaña"
