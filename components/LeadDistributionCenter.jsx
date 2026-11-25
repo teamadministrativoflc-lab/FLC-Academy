@@ -16,6 +16,9 @@ function LeadDistributionCenter({user}) {
   const [pendingQueue,setPendingQueue]=React.useState([]);
   const [pendingLoading,setPendingLoading]=React.useState(false);
   const [pendingError,setPendingError]=React.useState('');
+  const [rrQueue,setRrQueue]=React.useState([]);
+  const [rrLoading,setRrLoading]=React.useState(false);
+  const [rrError,setRrError]=React.useState('');
   const date=x=>x?new Date(x).toLocaleString('es-US',{timeZone:'America/New_York',dateStyle:'medium',timeStyle:'short'}):'—';
   const load=React.useCallback(async()=>{
     setLoading(true);setError('');
@@ -45,7 +48,16 @@ function LeadDistributionCenter({user}) {
     setPendingLoading(false);
   },[isAdmin]);
   React.useEffect(()=>{loadPending();},[loadPending]);
-  const refreshAll=async()=>{await Promise.all([load(),loadPending()]);};
+  const loadRoundRobin=React.useCallback(async()=>{
+    if(!isAdmin)return;
+    setRrLoading(true);setRrError('');
+    const {data,error:err}=await window.flcSupabase.rpc('flc_distribution_round_robin_preview',{p_limit:200});
+    if(err){setRrError('No se pudo simular Round Robin: '+err.message);setRrQueue([]);}
+    else setRrQueue(data||[]);
+    setRrLoading(false);
+  },[isAdmin]);
+  React.useEffect(()=>{loadRoundRobin();},[loadRoundRobin]);
+  const refreshAll=async()=>{await Promise.all([load(),loadPending(),loadRoundRobin()]);};
   const filtered=leads.filter(l=>{
     const s=[l.contact_name,l.source_campaign,l.external_lead_id,l.assigned_agent_name,l.lead_state].join(' ').toLowerCase();
     return (status==='all'||l.lifecycle_status===status)&&s.includes(query.toLowerCase());
@@ -131,6 +143,25 @@ function LeadDistributionCenter({user}) {
            </tr>)}</tbody>
          </table>{pendingQueue.length===0&&<p>No hay leads pendientes.</p>}</div>
        </>}
+    </div>}
+    {isAdmin&&<div className="card" style={{marginTop:20}}>
+      <h2 style={{fontSize:22,marginBottom:8}}>Round Robin — turnos propuestos</h2>
+      <p style={{color:'#677466',marginBottom:12}}>Simulación por campaña y estado. No asigna contactos ni avanza el turno real. Los agentes inactivos quedan excluidos.</p>
+      {rrLoading?<p role="status">Calculando turnos…</p>:
+       rrError?<p role="alert" style={{color:'#a33'}}>{rrError}</p>:
+       <div style={{overflowX:'auto'}}>
+         <table className="flc-leads-table">
+           <thead><tr><th>Contacto</th><th>Campaña</th><th>Estado</th><th>Elegibles</th><th>Siguiente agente</th><th>Decisión</th></tr></thead>
+           <tbody>{rrQueue.map(p=><tr key={p.lead_id}>
+             <td>{p.contact_name||'Sin nombre'}</td>
+             <td>{p.source_campaign}</td><td>{p.state_code||'Sin estado'}</td>
+             <td>{p.eligible_count}</td>
+             <td>{p.suggested_agent_name||'—'}</td>
+             <td>{p.decision==='hold_no_available_agent'?'En espera':'Listo para revisión'}</td>
+           </tr>)}</tbody>
+         </table>
+         {rrQueue.length===0&&<p>No hay leads pendientes.</p>}
+       </div>}
     </div>}
     {selected&&<div className="flc-leads-modal-backdrop" role="presentation" onClick={()=>setSelected(null)}>
       <section className="flc-leads-modal card" role="dialog" aria-modal="true" aria-label="Detalle del lead" onClick={e=>e.stopPropagation()}>
