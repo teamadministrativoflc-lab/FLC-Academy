@@ -70,6 +70,7 @@ function FlcLeadActivation({user}) {
          })}</tbody>
        </table>{visible.length===0&&<p>No se encontraron agentes.</p>}</div>}
     </div>
+    {!loading&&<FlcAgentEligibility agents={agents}/>}
   </section>;
 }
 window.FlcLeadActivation=FlcLeadActivation;
