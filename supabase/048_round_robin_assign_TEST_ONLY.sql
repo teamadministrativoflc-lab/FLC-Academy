@@ -3,7 +3,7 @@
 -- Run SQL in main project fvhbzutxaoujtnnjzhlk after review.
 BEGIN;
 
-CREATE OR REPLACE FUNCTION public.flc_distribution_round_robin_assign_TEST(
+CREATE OR REPLACE FUNCTION public.flc_distribution_round_robin_assign_test(
   p_lead_id uuid
 )
 RETURNS jsonb
@@ -117,10 +117,10 @@ BEGIN
 END;
 $fn$;
 
-REVOKE ALL ON FUNCTION public.flc_distribution_round_robin_assign_TEST(uuid)
+REVOKE ALL ON FUNCTION public.flc_distribution_round_robin_assign_test(uuid)
 FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.flc_distribution_round_robin_assign_TEST(uuid)
+GRANT EXECUTE ON FUNCTION public.flc_distribution_round_robin_assign_test(uuid)
 TO authenticated;
 COMMIT;
 
-SELECT proname FROM pg_proc WHERE proname='flc_distribution_round_robin_assign_TEST';
+SELECT proname FROM pg_proc WHERE proname='flc_distribution_round_robin_assign_test';
