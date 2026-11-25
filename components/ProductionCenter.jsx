@@ -12,18 +12,23 @@ function ProductionCenter({user,setPage}) {
    window.sessionStorage.removeItem('flc_new_sale_from_lead');
    let draft;try{draft=JSON.parse(stored);}catch(_){return;}
    if(!draft?.leadId||draft.agentId!==user.id)return;
-   setLeadSaleDraft(draft);setLeadSaleCheckBusy(true);
+   // Open the form immediately; permission verification happens in parallel.
+   // Do not make form navigation depend on an asynchronous RPC returning successfully.
+   setActiveSection('policies');
+   setTab('new');
+   setForm(x=>({...x,client:draft.contactName||'',source:'AuraFlow'}));
+   setLeadSaleDraft(draft);
+   setLeadSaleCheckBusy(true);
    setLeadSaleCheckError('');
    window.flcSupabase.rpc('flc_distribution_my_leads',{p_limit:200}).then(({data,error})=>{
      setLeadSaleCheckBusy(false);
      if(error||(data||[]).every(x=>x.lead_id!==draft.leadId||x.assigned_agent_id!==user.id)){
-       setLeadSaleCheckError('No se pudo verificar que el lead sigue asignado a tu cuenta.');
-       setLeadSaleDraft(null);
+       setLeadSaleCheckError('No se pudo verificar que el lead sigue asignado a tu cuenta. No guardes la venta.');
        return;
      }
-     setActiveSection('policies');
-     setTab('new');
-     setForm(x=>({...x,client:draft.contactName||'',source:'AuraFlow'}));
+   }).catch(err=>{
+     setLeadSaleCheckBusy(false);
+     setLeadSaleCheckError('Falló la verificación del lead: '+(err?.message||'error de conexión'));
    });
  },[user.id]);
  const [activeSection,setActiveSection]=React.useState(()=>{
