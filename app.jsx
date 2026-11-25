@@ -19,8 +19,12 @@ function ZoomIdentityLinkButton({lang}) {
       window.location.assign(data.authorization_url);
     }catch(e){setMessage(e?.message||'Error al conectar Zoom.');setBusy(false);}
   };
-  return <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-    <button type="button" onClick={start} disabled={busy} style={{padding:'8px 12px',border:'1px solid #ced8cc',borderRadius:8,background:'#f8fbf7',color:'#244530',fontWeight:600,cursor:busy?'wait':'pointer'}}>{busy?'Conectando…':lang==='en'?'Link my Zoom':'Vincular mi Zoom'}</button>
+  return <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',padding:'4px 0'}}>
+    <span style={{fontSize:12,fontWeight:800,background:'#c2f58e',color:'#183a20',padding:'8px 11px',borderRadius:30,boxShadow:'0 2px 7px rgba(46,86,28,.14)',whiteSpace:'nowrap'}}>{lang==='en'?'Step 1':'Paso 1'}</span>
+    <button type="button" onClick={start} disabled={busy} title={lang==='en'?'Connect your Zoom account securely':'Conecta tu cuenta de Zoom de forma segura'} style={{display:'inline-flex',alignItems:'center',gap:11,padding:'12px 22px',border:'2px solid #74ae38',borderRadius:28,background:'linear-gradient(110deg,#245b22,#4e911e)',color:'#fff',fontSize:17,fontWeight:800,letterSpacing:'.1px',boxShadow:'0 5px 14px rgba(60,120,30,.28)',cursor:busy?'wait':'pointer',opacity:busy?.7:1,whiteSpace:'nowrap'}}>
+      <span aria-hidden="true" style={{display:'inline-flex',alignItems:'center',justifyContent:'center',height:27,width:30,borderRadius:7,background:'#3f8cef',fontSize:18}}>📹</span>
+      {busy?'Conectando…':lang==='en'?'Connect your Zoom':'Conecta tu Zoom'}
+    </button>
     {message&&<span role="alert" style={{fontSize:12,color:'#a32626',maxWidth:270}}>{message}</span>}
   </div>;
 }
