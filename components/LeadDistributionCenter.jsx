@@ -32,28 +32,49 @@ function LeadDistributionCenter({user,setPage}) {
   const [activityFollowUp,setActivityFollowUp]=React.useState('');
   const [activityBusy,setActivityBusy]=React.useState(false);
   const [activityFeedback,setActivityFeedback]=React.useState('');
+  const [voidBusy,setVoidBusy]=React.useState(false);
+  const [recentlySubmitted,setRecentlySubmitted]=React.useState(false);
   const canLogActivity=!!selected && !isAdminAccount(user) && selected.assigned_agent_id===user?.id;
   function isAdminAccount(u){return u?.role==='admin';}
   React.useEffect(()=>{
     setActivityKind('call');setActivityResult('no_answer');setActivityNote('');
-    setActivityFollowUp('');setActivityFeedback('');
+    setActivityFollowUp('');setActivityFeedback('');setRecentlySubmitted(false);
   },[selected?.lead_id]);
   const saveActivity=async()=>{
-    if(!selected||!canLogActivity||activityBusy)return;
+    if(!selected||!canLogActivity||activityBusy||recentlySubmitted)return;
     if((activityKind==='appointment'||activityKind==='follow_up')&&!activityFollowUp){
       setActivityFeedback('Selecciona fecha y hora del seguimiento.');return;
     }
     const followUp=activityFollowUp?new Date(activityFollowUp).toISOString():null;
     setActivityBusy(true);setActivityFeedback('');
-    const {error:err}=await window.flcSupabase.rpc('flc_distribution_record_activity',{
+    const {data:activityData,error:err}=await window.flcSupabase.rpc('flc_distribution_record_activity',{
       p_lead_id:selected.lead_id,p_kind:activityKind,
       p_result:activityKind==='call'?activityResult:null,
       p_note:activityNote.trim()||null,p_follow_up_at:followUp
     });
     setActivityBusy(false);
     if(err){setActivityFeedback('No se pudo guardar: '+err.message);return;}
-    setActivityFeedback('Gestión guardada en FLC Academy. Sincronización a AuraFlow aún no habilitada.');
+    setRecentlySubmitted(true);
+    setActivityFeedback(activityData?.duplicate_prevented?'Ya existía una gestión idéntica reciente. No se duplicó.':'Gestión guardada en FLC Academy. Sincronización a AuraFlow aún no habilitada.');
     setActivityNote('');setActivityFollowUp('');
+    const result=await window.flcSupabase.rpc('flc_distribution_lead_timeline',{
+      p_lead_id:selected.lead_id,p_limit:100
+    });
+    if(!result.error)setEvents(result.data||[]);
+  };
+  const voidManualActivity=async e=>{
+    if(!selected||!canLogActivity||voidBusy)return;
+    const reason=window.prompt('Motivo para anular esta gestión (mínimo 5 caracteres):');
+    if(reason===null)return;
+    if(reason.trim().length<5){setActivityFeedback('Escribe un motivo de al menos cinco caracteres.');return;}
+    if(!window.confirm('Se marcará la gestión como ANULADA, conservando el historial. ¿Continuar?'))return;
+    setVoidBusy(true);
+    const {error:err}=await window.flcSupabase.rpc('flc_distribution_void_activity',{
+      p_lead_id:selected.lead_id,p_event_id:e.event_id,p_reason:reason.trim()
+    });
+    setVoidBusy(false);
+    if(err){setActivityFeedback('No se pudo anular: '+err.message);return;}
+    setActivityFeedback('Gestión anulada con historial conservado.');
     const result=await window.flcSupabase.rpc('flc_distribution_lead_timeline',{
       p_lead_id:selected.lead_id,p_limit:100
     });
@@ -324,7 +345,7 @@ function LeadDistributionCenter({user,setPage}) {
           <p style={{fontSize:13,color:'#677466'}}>Registra la gestión manualmente después de llamar con Aloware o tu teléfono. Por ahora, solo queda guardada en FLC Academy.</p>
           <div style={{display:'grid',gap:10,margin:'12px 0'}}>
             <label>Tipo de gestión
-              <select value={activityKind} onChange={e=>setActivityKind(e.target.value)} style={{display:'block',width:'100%'}}>
+              <select value={activityKind} onChange={e=>{setActivityKind(e.target.value);setRecentlySubmitted(false);}} style={{display:'block',width:'100%'}}>
                 <option value="call">Llamada</option>
                 <option value="note">Nota</option>
                 <option value="follow_up">Seguimiento</option>
@@ -332,7 +353,7 @@ function LeadDistributionCenter({user,setPage}) {
               </select>
             </label>
             {activityKind==='call'&&<label>Resultado de llamada
-              <select value={activityResult} onChange={e=>setActivityResult(e.target.value)} style={{display:'block',width:'100%'}}>
+              <select value={activityResult} onChange={e=>{setActivityResult(e.target.value);setRecentlySubmitted(false);}} style={{display:'block',width:'100%'}}>
                 <option value="no_answer">No contestó</option>
                 <option value="voicemail">Buzón de voz</option>
                 <option value="interested">Interesado</option>
@@ -344,21 +365,32 @@ function LeadDistributionCenter({user,setPage}) {
               </select>
             </label>}
             {(activityKind==='follow_up'||activityKind==='appointment')&&<label>Fecha y hora de próxima gestión
-              <input type="datetime-local" value={activityFollowUp} onChange={e=>setActivityFollowUp(e.target.value)} style={{display:'block',width:'100%'}}/>
+              <input type="datetime-local" value={activityFollowUp} onChange={e=>{setActivityFollowUp(e.target.value);setRecentlySubmitted(false);}} style={{display:'block',width:'100%'}}/>
             </label>}
             <label>Notas de la gestión
-              <textarea value={activityNote} maxLength={2000} rows={3} onChange={e=>setActivityNote(e.target.value)}
+              <textarea value={activityNote} maxLength={2000} rows={3} onChange={e=>{setActivityNote(e.target.value);setRecentlySubmitted(false);}}
                 placeholder="Información del contacto y próximos pasos" style={{display:'block',width:'100%'}}/>
             </label>
           </div>
-          <button type="button" className="btn-green" disabled={activityBusy} onClick={saveActivity}>
+          <button type="button" className="btn-green" disabled={activityBusy||recentlySubmitted} onClick={saveActivity}>
             {activityBusy?'Guardando…':'Guardar gestión'}
           </button>
           {activityFeedback&&<p role="status" style={{marginTop:10}}>{activityFeedback}</p>}
         </div>}
         <h3>Historial</h3>
         {eventsLoading?<p>Cargando…</p>:events.length===0?<p>No hay eventos registrados todavía.</p>:
-          events.map(e=><p key={e.event_id}><strong>{describeEvent(e)}</strong> · {date(e.event_at)} · {e.actor_name}</p>)}
+          events.map(e=>{
+            const voided=events.some(v=>v.event_type==='agent_activity_voided'&&v.details?.voided_event_id===e.event_id);
+            const manual=['agent_call_logged','agent_note_logged','agent_follow_up_logged','agent_appointment_logged'].includes(e.event_type);
+            const mine=manual&&canLogActivity&&!voided&&e.actor_name===user.name;
+            return <p key={e.event_id}>
+              <strong>{e.event_type==='agent_activity_voided'?'Anulación registrada · '+(e.details?.reason||''):
+                describeEvent(e)}</strong>
+              {voided&&<span> · ANULADA</span>} · {date(e.event_at)} · {e.actor_name}
+              {mine&&<button type="button" className="btn-secondary" style={{marginLeft:8}}
+                disabled={voidBusy} onClick={()=>voidManualActivity(e)}>Anular</button>}
+            </p>;
+          })}
       </section>
     </div>}
   </div>;
