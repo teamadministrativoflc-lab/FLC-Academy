@@ -51,6 +51,7 @@ Deno.serve(async request => {
   catch { return respond({ error: "identity_lookup_failed" }, 503); }
   if (!res.ok) return respond({ error: "identity_lookup_failed" }, 503);
   const linked = await res.json() as Array<{ academy_user_id: string }>;
+  console.info("FLC Zoom identity match:", linked.length === 1 ? "matched" : "unmatched");
   if (linked.length !== 1) return respond({ accepted: true, matched: false, recorded: false });
   const evidence = {
     academy_user_id: linked[0].academy_user_id,
@@ -69,6 +70,10 @@ Deno.serve(async request => {
       body: JSON.stringify(evidence),
     });
   } catch { return respond({ error: "evidence_storage_failed" }, 503); }
-  if (!res.ok) return respond({ error: "evidence_storage_failed" }, 503);
+  if (!res.ok) {
+    console.warn("FLC Zoom evidence insert failed:", res.status);
+    return respond({ error: "evidence_storage_failed" }, 503);
+  }
+  console.info("FLC Zoom evidence: stored_or_duplicate");
   return respond({ accepted: true, matched: true, recorded_or_duplicate: true, availability_changed: false });
 });
