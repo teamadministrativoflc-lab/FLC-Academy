@@ -28,7 +28,11 @@ Deno.serve(async (req) => {
   // request origin (Edge runtime or reverse proxy may expose an internal host).
   // Also require the callback path to match. Never accept arbitrary redirects.
   const expectedRedirect = new URL("/functions/v1/zoom-identity-callback", supabase);
-  if (redirectUri !== expectedRedirect.href || u.pathname !== expectedRedirect.pathname)
+  // Zoom's redirect URI must equal the project's canonical public callback URL.
+  // Supabase Edge may rewrite the request path internally; validating u.pathname
+  // would reject an otherwise valid Zoom callback. Single-use signed state is
+  // checked below, and the code is exchanged only against this fixed redirect URI.
+  if (redirectUri !== expectedRedirect.href)
     return json({ error: "invalid_redirect_configuration" }, 503);
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
   const states = new URL("/rest/v1/flc_zoom_identity_oauth_states", supabase);
