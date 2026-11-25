@@ -15,6 +15,7 @@ function Sidebar({ page, setPage, user, rankLabel, onLogout, t, lang, isLeader, 
     ...(user.role==='admin'?[
       {id:'ceo',icon:'chart',label:'Panel de Dirección FLC'},
       {id:'admin',icon:'progress',label:'Seguimiento de agentes'},
+      {id:'lead-activation',icon:'shield',label:'Activación de leads (pruebas)'},
       {id:'ranks',icon:'shield',label:'Administración de Rangos'}
     ]:[]),
   ];
