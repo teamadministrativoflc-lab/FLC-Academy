@@ -3,6 +3,29 @@ function ProductionCenter({user,setPage}) {
  const carriers=['National Life Group','F&G','Foresters','American Amicable','Transamerica','Mutual of Omaha','Aetna','Americo','Lincoln Heritage','Occidental','Corebridge','Athene','Otro'];
  const products=['IUL','Term','Whole Life','Final Expense','Annuity','Mortgage Protection','Key Man','Executive Bonus','Otro'];
  const blank=()=>({client:'',number:'',carrier:'National Life Group',product:'IUL',source:'AuraFlow',other:'',ap:'',partners:[],primaryPct:'100',date:new Date().toISOString().slice(0,10),primary:'',initialDisposition:'Sometida'});
+ const [leadSaleDraft,setLeadSaleDraft]=React.useState(null);
+ const [leadSaleCheckBusy,setLeadSaleCheckBusy]=React.useState(false);
+ const [leadSaleCheckError,setLeadSaleCheckError]=React.useState('');
+ React.useEffect(()=>{
+   const stored=window.sessionStorage.getItem('flc_new_sale_from_lead');
+   if(!stored)return;
+   window.sessionStorage.removeItem('flc_new_sale_from_lead');
+   let draft;try{draft=JSON.parse(stored);}catch(_){return;}
+   if(!draft?.leadId||draft.agentId!==user.id)return;
+   setLeadSaleDraft(draft);setLeadSaleCheckBusy(true);
+   setLeadSaleCheckError('');
+   window.flcSupabase.rpc('flc_distribution_my_leads',{p_limit:200}).then(({data,error})=>{
+     setLeadSaleCheckBusy(false);
+     if(error||(data||[]).every(x=>x.lead_id!==draft.leadId||x.assigned_agent_id!==user.id)){
+       setLeadSaleCheckError('No se pudo verificar que el lead sigue asignado a tu cuenta.');
+       setLeadSaleDraft(null);
+       return;
+     }
+     setActiveSection('policies');
+     setTab('new');
+     setForm(x=>({...x,client:draft.contactName||'',source:'AuraFlow'}));
+   });
+ },[user.id]);
  const [activeSection,setActiveSection]=React.useState(()=>{
   const target=window.sessionStorage.getItem('flc_production_target_section');
   if(target==='ranking')window.sessionStorage.removeItem('flc_production_target_section');
@@ -455,6 +478,13 @@ function ProductionCenter({user,setPage}) {
   setEditing(null);setNotice('Estado actualizado correctamente.');await load();
  };
  const submit=async e=>{e.preventDefault();setError('');setNotice('');
+ if(leadSaleCheckBusy){setError('Espera la comprobación del lead.');return;}
+ if(leadSaleDraft?.sourceContactId?.startsWith('FLC-PRUEBA-')){
+   setError('Este lead es ficticio. Para proteger los reportes y rankings, no está permitido registrar una póliza de prueba en el Production Center oficial.');
+   return;
+ }
+ if(leadSaleCheckError){setError(leadSaleCheckError);return;}
+
  const all=[{agentId:primaryAgent,pct:form.primaryPct},...form.partners];
  if(form.partners.length>4||all.some(p=>!p.agentId||!Number.isFinite(Number(p.pct))||Number(p.pct)<=0||Number(p.pct)>100)||new Set(all.map(p=>p.agentId)).size!==all.length||Math.abs(splitTotal-100)>0.001){
   setError('Selecciona agentes distintos y porcentajes positivos que sumen exactamente 100%.');return;
@@ -799,6 +829,14 @@ function ProductionCenter({user,setPage}) {
   </div>
  </section>}
  {error&&<p role="alert" style={{color:'#a22'}}>{error}</p>}{notice&&<p role="status" style={{color:'#24773f'}}>{notice}</p>}
+ {leadSaleCheckBusy&&<p role="status">Verificando que el lead pertenece a tu cuenta…</p>}
+ {leadSaleCheckError&&<p role="alert" style={{color:'#a33'}}>{leadSaleCheckError}</p>}
+ {leadSaleDraft&&<p style={{padding:12,background:'#f4f7ed',border:'1px solid #b8cfaa',borderRadius:9}}>
+   Origen: Lead Distribution Center · {leadSaleDraft.contactName||'Cliente'} · {leadSaleDraft.campaign}.
+   {leadSaleDraft.sourceContactId?.startsWith('FLC-PRUEBA-')
+      ?' Contacto ficticio: registro de póliza bloqueado para proteger la producción.'
+      :' Revisa los datos antes de guardar. La vinculación automática al lead se habilitará después de implementar la validación de duplicados.'}
+ </p>}
  {tab==='new'?<form onSubmit={submit} style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16,background:'#fff',padding:22,border:'1px solid #dae5d9',borderRadius:12}}>
  {field('Nombre del cliente *',<input required maxLength={150} style={inp} value={form.client} onChange={e=>change('client',e.target.value)}/>)}
  {field('Número de póliza (cuando esté asignado)',<input maxLength={80} style={inp} value={form.number} onChange={e=>change('number',e.target.value)}/>)}
