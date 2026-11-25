@@ -13,6 +13,10 @@ function LeadDistributionCenter({user,setPage}) {
   const [testAgentId,setTestAgentId]=React.useState('');
   const [testBusy,setTestBusy]=React.useState(false);
   const [testMessage,setTestMessage]=React.useState('');
+  const [realAgents,setRealAgents]=React.useState([]);
+  const [realAgentId,setRealAgentId]=React.useState('');
+  const [realAssignBusy,setRealAssignBusy]=React.useState(false);
+  const [realAssignResult,setRealAssignResult]=React.useState('');
   const [rrTestBusy,setRrTestBusy]=React.useState(false);
   const [rrTestResult,setRrTestResult]=React.useState('');
   const [pendingQueue,setPendingQueue]=React.useState([]);
@@ -130,6 +134,35 @@ function LeadDistributionCenter({user,setPage}) {
     });
     return()=>{active=false;};
   },[selected?.lead_id,selected?.source_campaign,selected?.lead_state,selected?.assigned_agent_id,isAdmin,synthetic]);
+  const realPending=!!selected && isAdmin &&
+    selected.lifecycle_status==='pending' &&
+    !selected.assigned_agent_id &&
+    !selected.external_lead_id?.startsWith('FLC-PRUEBA-') &&
+    !selected.external_lead_id?.startsWith('FLC-HISTORIAL-') &&
+    selected.source_campaign!=='FLC_TEST_INTEGRACION';
+  React.useEffect(()=>{
+    setRealAgentId('');setRealAssignResult('');setRealAgents([]);
+    if(!realPending||!selected?.lead_state)return;
+    let active=true;
+    window.flcSupabase.rpc('flc_distribution_simulate_eligibility',{
+      p_campaign_code:selected.source_campaign,p_state_code:selected.lead_state
+    }).then(({data,error:err})=>{
+      if(active)setRealAgents(err?[]:(data||[]).filter(a=>a.eligible));
+    });
+    return()=>{active=false;};
+  },[selected?.lead_id,selected?.lifecycle_status,realPending]);
+  const assignRealManually=async()=>{
+    if(!realPending||!realAgentId||realAssignBusy)return;
+    if(!window.confirm('¿Confirmas que este agente está presente, disponible y autorizado para contactar al cliente REAL? Esta acción asigna el lead en FLC Academy, pero NO en AuraFlow.'))return;
+    setRealAssignBusy(true);setRealAssignResult('');
+    const {data,error:err}=await window.flcSupabase.rpc('flc_distribution_assign_real_lead_manual',{
+      p_lead_id:selected.lead_id,p_agent_id:realAgentId
+    });
+    setRealAssignBusy(false);
+    if(err){setRealAssignResult('No se asignó: '+err.message);return;}
+    setRealAssignResult('Contacto asignado en FLC Academy a '+(data?.agent_name||'agente'));
+    setSelected(null);await refreshAll();
+  };
   const assignTest=async()=>{
     if(!selected||!synthetic||!testAgentId||testBusy||!isAdmin)return;
     if(!window.confirm('Esto asignará SOLO el contacto ficticio seleccionado. ¿Confirmas que el agente está realmente disponible y autorizado?'))return;
@@ -244,6 +277,19 @@ function LeadDistributionCenter({user,setPage}) {
         <p>Teléfono: {selected.phone||'—'}</p>
         <p>Correo: {selected.email||'—'}</p>
         <p>Estado: {selected.lead_state||'No identificado'}</p>
+        {realPending&&<div style={{padding:'14px 0',borderTop:'1px solid #dce8d7'}}>
+          <h3>Asignar lead real manualmente</h3>
+          <p style={{color:'#92550c'}}>Solo Administración. Requiere campaña, licencia por estado y disponibilidad verificada. No actualiza AuraFlow ni activa el reparto automático.</p>
+          <select aria-label="Agente disponible para lead real" value={realAgentId}
+            onChange={e=>setRealAgentId(e.target.value)}>
+            <option value="">Seleccionar agente elegible y activo</option>
+            {realAgents.map(a=><option value={a.agent_id} key={a.agent_id}>{a.agent_name}</option>)}
+          </select>
+          <button type="button" className="btn-green" disabled={!realAgentId||realAssignBusy}
+            onClick={assignRealManually}>{realAssignBusy?'Asignando…':'Confirmar asignación real'}</button>
+          {realAgents.length===0&&<p role="status">Sin agentes disponibles: este contacto permanece en cola.</p>}
+          {realAssignResult&&<p role="status">{realAssignResult}</p>}
+        </div>}
         {isAdmin&&synthetic&&!selected.assigned_agent_id&&<div style={{padding:'12px 0',borderTop:'1px solid #dce8d7'}}>
           <h3>Asignación controlada (solo contacto ficticio)</h3>
           <p>Solo aparecerán agentes que cumplan campaña, estado y Zoom verificado. No se enviará información a AuraFlow.</p>
