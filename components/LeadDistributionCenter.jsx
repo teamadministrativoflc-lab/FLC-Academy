@@ -9,6 +9,10 @@ function LeadDistributionCenter({user}) {
   const [error,setError]=React.useState('');
   const [query,setQuery]=React.useState('');
   const [status,setStatus]=React.useState('all');
+  const [testAgents,setTestAgents]=React.useState([]);
+  const [testAgentId,setTestAgentId]=React.useState('');
+  const [testBusy,setTestBusy]=React.useState(false);
+  const [testMessage,setTestMessage]=React.useState('');
   const date=x=>x?new Date(x).toLocaleString('es-US',{timeZone:'America/New_York',dateStyle:'medium',timeStyle:'short'}):'—';
   const load=React.useCallback(async()=>{
     setLoading(true);setError('');
@@ -33,6 +37,29 @@ function LeadDistributionCenter({user}) {
     return (status==='all'||l.lifecycle_status===status)&&s.includes(query.toLowerCase());
   });
   const isAdmin=user?.role==='admin';
+  const synthetic=!!selected && selected.external_lead_id?.startsWith('FLC-PRUEBA-') && selected.source_campaign!=='FLC_TEST_INTEGRACION';
+  React.useEffect(()=>{
+    if(!selected||!synthetic||!isAdmin||selected.assigned_agent_id){setTestAgents([]);setTestAgentId('');return;}
+    let active=true;
+    window.flcSupabase.rpc('flc_distribution_simulate_eligibility',{
+      p_campaign_code:selected.source_campaign,p_state_code:selected.lead_state||''
+    }).then(({data,error:err})=>{
+      if(!active)return;
+      setTestAgents(err?[]:(data||[]).filter(a=>a.eligible));
+    });
+    return()=>{active=false;};
+  },[selected?.lead_id,selected?.source_campaign,selected?.lead_state,selected?.assigned_agent_id,isAdmin,synthetic]);
+  const assignTest=async()=>{
+    if(!selected||!synthetic||!testAgentId||testBusy||!isAdmin)return;
+    if(!window.confirm('Esto asignará SOLO el contacto ficticio seleccionado. ¿Confirmas que el agente está realmente disponible y autorizado?'))return;
+    setTestBusy(true);setTestMessage('');
+    const {error:err}=await window.flcSupabase.rpc('flc_distribution_assign_test_lead',{
+      p_lead_id:selected.lead_id,p_agent_id:testAgentId
+    });
+    setTestBusy(false);
+    if(err)setTestMessage('No se pudo asignar: '+err.message);
+    else{setTestMessage('Contacto de prueba asignado correctamente.');setSelected(null);await load();}
+  };
   return <div className="flc-leads-center">
     <div className="breadcrumb">FLC Academy / <span>Lead Distribution Center</span></div>
     <h1 className="page-title">Lead <em>Distribution Center</em></h1>
@@ -78,6 +105,19 @@ function LeadDistributionCenter({user}) {
         <p>Teléfono: {selected.phone||'—'}</p>
         <p>Correo: {selected.email||'—'}</p>
         <p>Estado: {selected.lead_state||'No identificado'}</p>
+        {isAdmin&&synthetic&&!selected.assigned_agent_id&&<div style={{padding:'12px 0',borderTop:'1px solid #dce8d7'}}>
+          <h3>Asignación controlada (solo contacto ficticio)</h3>
+          <p>Solo aparecerán agentes que cumplan campaña, estado y Zoom verificado. No se enviará información a AuraFlow.</p>
+          <select aria-label="Agente elegible" value={testAgentId} onChange={e=>setTestAgentId(e.target.value)}>
+            <option value="">Seleccionar agente elegible</option>
+            {testAgents.map(a=><option key={a.agent_id} value={a.agent_id}>{a.agent_name}</option>)}
+          </select>
+          <button type="button" className="btn-green" disabled={!testAgentId||testBusy} onClick={assignTest}>
+            {testBusy?'Asignando…':'Asignar contacto ficticio'}
+          </button>
+          {testAgents.length===0&&<p>No hay agentes elegibles y verificados para esta campaña/estado.</p>}
+          {testMessage&&<p role="status">{testMessage}</p>}
+        </div>}
         <h3>Historial</h3>
         {eventsLoading?<p>Cargando…</p>:events.length===0?<p>No hay eventos registrados todavía.</p>:
           events.map(e=><p key={e.event_id}><strong>{e.event_type}</strong> · {date(e.event_at)} · {e.actor_name}</p>)}
