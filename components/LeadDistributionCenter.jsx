@@ -1,5 +1,5 @@
-// FLC Lead Distribution Center — read-only preview using new protected RPCs.
-// No automatic agent assignment or outbound CRM update is enabled.
+// FLC Lead Distribution Center — protected agent/admin views and manual workflows.
+// Automatic assignments are controlled by the server-side automation switch and scheduled task.
 function LeadDistributionCenter({user,setPage}) {
   const [leads,setLeads]=React.useState([]);
   const [selected,setSelected]=React.useState(null);
@@ -267,7 +267,7 @@ function LeadDistributionCenter({user,setPage}) {
   return <div className="flc-leads-center">
     <div className="breadcrumb">FLC Academy / <span>Lead Distribution Center</span></div>
     <h1 className="page-title">Lead <em>Distribution Center</em></h1>
-    <p className="page-sub">Vista de recepción de campañas. La asignación automática está desactivada mientras verificamos las reglas de distribución.</p>
+    <p className="page-sub">Vista de recepción de campañas. Las asignaciones automáticas dependen de la configuración del servidor, los agentes autorizados y sus reglas de campaña y estado.</p>
     <div className="flc-leads-summary">
       <div className="card"><span>Leads visibles</span><strong>{leads.length}</strong></div>
       <div className="card"><span>Asignados</span><strong>{leads.filter(l=>l.assigned_agent_id).length}</strong></div>
