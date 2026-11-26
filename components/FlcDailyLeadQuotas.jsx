@@ -1,4 +1,4 @@
-// Administrative daily quota configuration. This is NOT the live enforcement engine.
+// Administrative daily quota configuration. Live enforcement is server-side in flc_internal.distribute_one().
 function FlcDailyLeadQuotas({agents,campaigns}){
   const [agentId,setAgentId]=React.useState('');
   const [campaign,setCampaign]=React.useState('');
@@ -29,14 +29,14 @@ function FlcDailyLeadQuotas({agents,campaigns}){
     const {error:err}=await window.flcSupabase.rpc('flc_distribution_set_daily_quota',
       {p_agent_id:agentId,p_campaign_code:campaign,p_daily_limit:n});
     if(err)setError('No se guardó el cupo: '+err.message);
-    else{setInfo('Cupo guardado. La aplicación automática de límites queda pendiente de validación del motor.');await reload();}
+    else{setInfo('Cupo guardado. El motor automático aplica este límite a las nuevas asignaciones elegibles.');await reload();}
     setBusy(false);
   };
   const used=usage.find(x=>x.agent_id===agentId&&x.campaign_code===campaign)?.count||0;
   return <section className="card" style={{marginBottom:20}}>
     <h2 style={{fontSize:23}}>Cupos diarios de leads automáticos</h2>
     <p style={{color:'#69776b'}}>Cupo predeterminado: <strong>10 por agente y por campaña</strong>. Día calendario de Nueva York. Las citas asignadas manualmente no consumen cupo automático.</p>
-    <p style={{color:'#92550c'}}>Configuración preparada. Hasta instalar y validar el motor de cupos, estos valores NO limitan las asignaciones automáticas reales.</p>
+    <p style={{color:'#92550c'}}>Los límites diarios se aplican a las nuevas asignaciones automáticas. Un cupo de 0 impide nuevas asignaciones de esa campaña para el agente. También se requiere su disponibilidad, verificación administrativa y autorización de campaña y estado.</p>
     <div style={{display:'flex',flexWrap:'wrap',gap:12,alignItems:'end'}}>
       <label style={{display:'grid',gap:5}}>Agente
         <select value={agentId} onChange={e=>setAgentId(e.target.value)} style={{padding:10,borderRadius:7,maxWidth:270}}>
@@ -58,7 +58,7 @@ function FlcDailyLeadQuotas({agents,campaigns}){
         {busy?'Guardando…':'Guardar cupo'}
       </button>
     </div>
-    {agentId&&campaign&&<p style={{marginTop:12}}>Uso registrado hoy ({date||'—'}): <strong>{used}</strong> automáticos. Este contador no es fiable hasta activar el registro del motor.</p>}
+    {agentId&&campaign&&<p style={{marginTop:12}}>Uso registrado hoy ({date||'—'}): <strong>{used}</strong> automáticos. El contador refleja las asignaciones automáticas registradas en Supabase.</p>}
     {info&&<p role="status" style={{color:'#24713a'}}>{info}</p>}
     {error&&<p role="alert" style={{color:'#a22'}}>{error}</p>}
   </section>;
