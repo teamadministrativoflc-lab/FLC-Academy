@@ -16,6 +16,8 @@ function LeadDistributionCenter({user,setPage}) {
   const [realAgents,setRealAgents]=React.useState([]);
   const [realAgentId,setRealAgentId]=React.useState('');
   const [realAssignBusy,setRealAssignBusy]=React.useState(false);
+  const [appointmentOverride,setAppointmentOverride]=React.useState(false);
+  const [appointmentReason,setAppointmentReason]=React.useState('');
   const [realAssignResult,setRealAssignResult]=React.useState('');
   const [rrTestBusy,setRrTestBusy]=React.useState(false);
   const [rrTestResult,setRrTestResult]=React.useState('');
@@ -187,22 +189,33 @@ function LeadDistributionCenter({user,setPage}) {
     selected.source_campaign!=='FLC_TEST_INTEGRACION';
   React.useEffect(()=>{
     setRealAgentId('');setRealAssignResult('');setRealAgents([]);
+    setAppointmentOverride(false);setAppointmentReason('');
     if(!realPending||!selected?.lead_state)return;
     let active=true;
     window.flcSupabase.rpc('flc_distribution_simulate_eligibility',{
       p_campaign_code:selected.source_campaign,p_state_code:selected.lead_state
     }).then(({data,error:err})=>{
-      if(active)setRealAgents(err?[]:(data||[]).filter(a=>a.eligible));
+      if(active)setRealAgents(err?[]:(data||[]).filter(a=>a.campaign_allowed&&a.state_allowed));
     });
     return()=>{active=false;};
   },[selected?.lead_id,selected?.lifecycle_status,realPending]);
   const assignRealManually=async()=>{
     if(!realPending||!realAgentId||realAssignBusy)return;
-    if(!window.confirm('¿Confirmas que este agente está presente, disponible y autorizado para contactar al cliente REAL? Esta acción asigna el lead en FLC Academy, pero NO en AuraFlow.'))return;
+    const agent=realAgents.find(a=>a.agent_id===realAgentId);
+    if(!agent||!agent.campaign_allowed||!agent.state_allowed)return;
+    if(appointmentOverride && appointmentReason.trim().length<10){
+      setRealAssignResult('Indica el motivo de la cita previa (mínimo 10 caracteres).');return;
+    }
+    const confirmation=appointmentOverride
+      ? '¿Confirmas que ya existe una cita previa en AuraFlow y verificaste que el agente tiene licencia vigente para el estado? Se asignará SOLO este lead, sin activar su disponibilidad automática. No modifica AuraFlow.'
+      : '¿Confirmas que este agente está presente, disponible y autorizado para contactar al cliente REAL? Esta acción asigna el lead en FLC Academy, pero NO en AuraFlow.';
+    if(!window.confirm(confirmation))return;
     setRealAssignBusy(true);setRealAssignResult('');
-    const {data,error:err}=await window.flcSupabase.rpc('flc_distribution_assign_real_lead_manual',{
-      p_lead_id:selected.lead_id,p_agent_id:realAgentId
-    });
+    const args=appointmentOverride
+      ? {p_lead_id:selected.lead_id,p_agent_id:realAgentId,p_reason:appointmentReason.trim()}
+      : {p_lead_id:selected.lead_id,p_agent_id:realAgentId};
+    const {data,error:err}=await window.flcSupabase.rpc(
+      appointmentOverride?'flc_distribution_assign_prebooked_appointment':'flc_distribution_assign_real_lead_manual',args);
     setRealAssignBusy(false);
     if(err){setRealAssignResult('No se asignó: '+err.message);return;}
     setRealAssignResult('Contacto asignado en FLC Academy a '+(data?.agent_name||'agente'));
@@ -396,15 +409,29 @@ function LeadDistributionCenter({user,setPage}) {
         <p>Estado: {selected.lead_state||'No identificado'}</p>
         {realPending&&<div style={{padding:'14px 0',borderTop:'1px solid #dce8d7'}}>
           <h3>Asignar lead real manualmente</h3>
-          <p style={{color:'#92550c'}}>Solo Administración. Requiere campaña, licencia por estado y disponibilidad verificada. No actualiza AuraFlow ni activa el reparto automático.</p>
-          <select aria-label="Agente disponible para lead real" value={realAgentId}
+          <p style={{color:'#92550c'}}>Solo Administración. Se exige autorización de campaña y estado. La asignación ordinaria también requiere disponibilidad activa. No modifica AuraFlow.</p>
+          <label style={{display:'flex',alignItems:'center',gap:9,margin:'12px 0'}}>
+            <input type="checkbox" checked={appointmentOverride} onChange={e=>{setAppointmentOverride(e.target.checked);setRealAgentId('');setRealAssignResult('');}} />
+            <strong>Cita previamente agendada en AuraFlow (permitir agente inactivo)</strong>
+          </label>
+          <select aria-label="Agente para lead real" value={realAgentId}
             onChange={e=>setRealAgentId(e.target.value)}>
-            <option value="">Seleccionar agente elegible y activo</option>
-            {realAgents.map(a=><option value={a.agent_id} key={a.agent_id}>{a.agent_name}</option>)}
+            <option value="">Seleccionar agente autorizado</option>
+            {realAgents.filter(a=>appointmentOverride||a.verified_on_zoom).map(a=><option value={a.agent_id} key={a.agent_id}>{a.agent_name}{a.verified_on_zoom?' · Activo':' · Inactivo'}</option>)}
           </select>
-          <button type="button" className="btn-green" disabled={!realAgentId||realAssignBusy}
-            onClick={assignRealManually}>{realAssignBusy?'Asignando…':'Confirmar asignación real'}</button>
-          {realAgents.length===0&&<p role="status">Sin agentes disponibles: este contacto permanece en cola.</p>}
+          {appointmentOverride&&<div style={{margin:'12px 0'}}>
+            <p style={{fontSize:12,color:'#92550c'}}>Solo asigna este contacto; no activa al agente ni omite los permisos de campaña o estado. Confirma la licencia vigente y la cita registrada en AuraFlow.</p>
+            <label htmlFor="flc-appointment-reason" style={{display:'block',fontWeight:600,marginBottom:5}}>Referencia o motivo de la cita (obligatorio)</label>
+            <input id="flc-appointment-reason" type="text" value={appointmentReason}
+              placeholder="Ej. Cita agendada en AuraFlow, fecha y referencia"
+              onChange={e=>setAppointmentReason(e.target.value)} maxLength={500}
+              style={{width:'100%',padding:10,border:'1px solid #dce8d7',borderRadius:7}} />
+          </div>}
+          <button type="button" className="btn-green"
+            disabled={!realAgentId||realAssignBusy||(appointmentOverride&&appointmentReason.trim().length<10)}
+            onClick={assignRealManually}>{realAssignBusy?'Asignando…':appointmentOverride?'Confirmar asignación de cita':'Confirmar asignación real'}</button>
+          {realAgents.filter(a=>appointmentOverride||a.verified_on_zoom).length===0&&
+            <p role="status">Sin agentes que cumplan los requisitos seleccionados. Este contacto permanece en cola.</p>}
           {realAssignResult&&<p role="status">{realAssignResult}</p>}
         </div>}
         {isAdmin&&synthetic&&!selected.assigned_agent_id&&<div style={{padding:'12px 0',borderTop:'1px solid #dce8d7'}}>
