@@ -465,6 +465,35 @@
     .flc-dashboard > div:first-child h1 { font-size: 42px !important; }
     .flc-dashboard > div:nth-child(2) > div { gap: 12px !important; }
   }
+  .flc-leads-presence { display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px; }
+  .flc-leads-presence p { margin:4px 0 0;color:var(--ink-mute);font-size:13px; }
+  .flc-leads-presence button { min-width:170px; }
+  .flc-leads-presence .flc-leads-error { flex-basis:100%;color:var(--danger); }
+  /* Lead Distribution Center — read-only pilot */
+  .flc-leads-summary { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:20px 0; }
+  .flc-leads-summary .card { display:flex;flex-direction:column;gap:5px; }
+  .flc-leads-summary span { color:var(--ink-mute);font-size:12px; }
+  .flc-leads-summary strong { font-family:'Instrument Serif',serif;font-size:33px;font-weight:400; }
+  .flc-leads-toolbar { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px; }
+  .flc-leads-toolbar input,.flc-leads-toolbar select { border:1px solid var(--line);border-radius:8px;background:#fff;padding:11px 13px;min-width:175px; }
+  .flc-leads-toolbar input { flex:1; }
+  .flc-leads-scroll { max-width:100%;overflow-x:auto; }
+  .flc-leads-table { border-collapse:collapse;width:100%;min-width:780px;text-align:left;font-size:13px; }
+  .flc-leads-table th,.flc-leads-table td { border-bottom:1px solid var(--line);padding:12px 10px;vertical-align:middle; }
+  .flc-leads-table th { color:var(--ink-mute);font-size:11px;text-transform:uppercase;letter-spacing:.05em; }
+  .flc-leads-table td small { display:block;color:var(--ink-mute);margin-top:3px; }
+  .flc-leads-table .btn-secondary { white-space:nowrap; }
+  .flc-leads-error { color:var(--danger); }
+  .flc-leads-modal-backdrop { position:fixed;inset:0;background:rgba(10,15,10,.62);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px; }
+  .flc-leads-modal { width:min(680px,100%);max-height:90vh;overflow-y:auto; }
+  .flc-leads-modal-header { display:flex;align-items:flex-start;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding-bottom:16px; }
+  .flc-leads-modal-header p { margin:5px 0;color:var(--ink-mute);font-size:13px; }
+  .flc-leads-event { border-bottom:1px solid var(--line);padding:15px 0; }
+  .flc-leads-event>div { display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap; }
+  .flc-leads-event span,.flc-leads-event small { font-size:12px;color:var(--ink-mute); }
+  .flc-leads-event pre { font-size:11px;background:var(--cream-warm);border-radius:6px;padding:10px;white-space:pre-wrap;overflow-wrap:anywhere; }
+  .flc-leads-disclaimer { color:var(--ink-mute);font-size:11px;margin-top:15px; }
+  @media(max-width:680px){ .flc-leads-summary{grid-template-columns:1fr;} .flc-leads-toolbar input,.flc-leads-toolbar select {width:100%;} }
 </style>
 </head>
 <body>
@@ -497,6 +526,9 @@
 <script type="text/babel" src="components/AdminTracking.jsx"></script>
 <script type="text/babel" src="components/TeamPanel.jsx"></script>
 <script type="text/babel" src="components/ProductionCenter.jsx"></script>
+<script type="text/babel" src="components/LeadDistributionCenter.jsx"></script>
+<script type="text/babel" src="components/FlcAgentEligibility.jsx"></script>
+<script type="text/babel" src="components/FlcLeadActivation.jsx"></script>
 <script type="text/babel" src="components/CeoDashboard.jsx"></script>
 <script type="text/babel" src="components/LiveSalesFeed.jsx"></script>
 <script type="text/babel" src="components/RankCenter.jsx"></script>
