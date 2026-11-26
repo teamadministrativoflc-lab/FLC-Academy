@@ -36,8 +36,24 @@ Deno.serve(async (req) => {
       signal: AbortSignal.timeout(8000),
     });
   } catch { return send({ stage: "token", error: "network_failure" }, 502); }
-  if (!tokenResult.ok)
-    return send({ stage: "token", error: "zoom_token_rejected", zoom_http_status: tokenResult.status }, 200);
+  if (!tokenResult.ok) {
+    // Show only Zoom's numeric OAuth error code, never its raw response,
+    // which could unexpectedly contain account data or sensitive details.
+    let zoomErrorCode: number | null = null;
+    try {
+      const detail = await tokenResult.json() as { error?: unknown; code?: unknown };
+      const raw = typeof detail.code === "number" ? detail.code
+        : typeof detail.error === "number" ? detail.error : null;
+      if (raw !== null && Number.isSafeInteger(raw) && raw >= 0 && raw <= 999999) zoomErrorCode = raw;
+    } catch { /* Preserve safe generic error. */ }
+    return send({
+      stage: "token",
+      error: "zoom_token_rejected",
+      zoom_http_status: tokenResult.status,
+      zoom_error_code: zoomErrorCode,
+      credentials_exposed: false,
+    }, 200);
+  }
   let accessToken: string;
   try {
     const parsed = await tokenResult.json() as { access_token?: string };
