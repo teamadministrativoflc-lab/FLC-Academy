@@ -174,7 +174,6 @@ END;
 $fn$;
 REVOKE ALL ON FUNCTION flc_internal.distribute_one()
   FROM PUBLIC,anon,authenticated;
-COMMIT;
 
 -- Report effective eligibility dynamically to the agent UI only after 066.
 CREATE OR REPLACE FUNCTION public.flc_distribution_my_self_presence()
