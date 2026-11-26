@@ -29,7 +29,7 @@ function FlcMyAvailability({user}){
       {loading?<p>Consultando disponibilidad…</p>:<>
         <p><strong>{state?.wants_leads?'🟢 Disponible (solicitud registrada)':'⚪ No disponible'}</strong></p>
         <p>Verificación administrativa de Zoom: {state?.admin_verified?'Confirmada':'Pendiente'}</p>
-        <p style={{color:'#99600c'}}>La solicitud se guarda, pero todavía no controla la distribución automática. La activación requiere integrar esta preferencia con el motor y validar Zoom.</p>
+        <p style={{color:'#99600c'}}>{state?.enforcement_status==='active'?'La distribución automática requiere tanto tu disponibilidad como la verificación administrativa de Zoom, campañas y estados autorizados y cupo diario vigente.':'La solicitud se guarda, pero todavía no controla la distribución automática. La activación requiere integrar esta preferencia con el motor y validar Zoom.'}</p>
       </>}
     </div>
     <button type="button" className={state?.wants_leads?'btn-secondary':'btn-green'}
