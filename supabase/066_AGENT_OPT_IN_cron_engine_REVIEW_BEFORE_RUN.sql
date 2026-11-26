@@ -1,0 +1,16 @@
+-- DEPRECATED / DO NOT EXECUTE
+-- SQL 066 was found to contain a duplicate table alias "sp" and was
+-- replaced by the corrected SQL 067.
+--
+-- This file is deliberately a non-executable documentation stub to prevent
+-- accidental reinstallation of the broken pg_cron distributor.
+--
+-- Correct replacement:
+-- supabase/067_FIX_agent_presence_cron_alias_REVIEW_BEFORE_RUN.sql
+--
+-- Historical note: SQL 066 was already run in Supabase MAIN, and SQL 067
+-- was subsequently applied successfully. Post-fix verification showed
+-- exactly two agent self-presence joins and a succeeding cron job.
+--
+-- Do not re-run SQL 066. Do not run SQL 067 a second time without a
+-- fresh reason and review of the current deployed function.
