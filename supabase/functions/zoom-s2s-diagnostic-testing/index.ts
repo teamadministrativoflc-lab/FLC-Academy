@@ -40,17 +40,24 @@ Deno.serve(async (req) => {
     // Show only Zoom's numeric OAuth error code, never its raw response,
     // which could unexpectedly contain account data or sensitive details.
     let zoomErrorCode: number | null = null;
+    let zoomErrorType: string | null = null;
     try {
       const detail = await tokenResult.json() as { error?: unknown; code?: unknown };
       const raw = typeof detail.code === "number" ? detail.code
         : typeof detail.error === "number" ? detail.error : null;
       if (raw !== null && Number.isSafeInteger(raw) && raw >= 0 && raw <= 999999) zoomErrorCode = raw;
+      // Zoom's S2S OAuth failures often use a STRING error, not a numeric code.
+      // Expose only allowlisted standard OAuth error identifiers, never raw reasons.
+      const known = ["invalid_client", "invalid_request", "unsupported_grant_type", "unauthorized_client", "invalid_grant"];
+      if (typeof detail.error === "string" && known.includes(detail.error))
+        zoomErrorType = detail.error;
     } catch { /* Preserve safe generic error. */ }
     return send({
       stage: "token",
       error: "zoom_token_rejected",
       zoom_http_status: tokenResult.status,
       zoom_error_code: zoomErrorCode,
+      zoom_error_type: zoomErrorType,
       credentials_exposed: false,
     }, 200);
   }
