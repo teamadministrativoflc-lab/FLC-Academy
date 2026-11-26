@@ -1,0 +1,8 @@
+-- DEPRECATED — DO NOT EXECUTE SQL 063.
+-- This early proposal targets public.flc_distribution_round_robin_real_step(),
+-- which is NOT the active production pg_cron entry point.
+-- The actual cron invokes flc_internal.distribute_one().
+-- Historical quota rollout used 064, and agent availability integration
+-- now uses the corrected 067 function already installed in Supabase MAIN.
+-- This stub intentionally contains no executable SQL.
+-- Do not reinstall 064 or 067 merely because these files are in a PR.

@@ -58,7 +58,7 @@ function FlcAgentEligibility({agents}) {
     else setSimResults(data||[]);
     setSimLoading(false);
   };
-  return <div className="card" style={{marginTop:20}}>
+  return <div style={{marginTop:20}}><FlcDailyLeadQuotas agents={agents} campaigns={campaigns}/><div className="card">
     <h2 style={{fontSize:23,marginBottom:8}}>Campañas y estados por agente</h2>
     <p style={{color:'#69776b',marginBottom:15}}>Selecciona campañas y estados donde el agente está autorizado. Estas selecciones NO activan la distribución.</p>
     {loading?<p>Cargando configuración…</p>:<>
@@ -126,6 +126,6 @@ function FlcAgentEligibility({agents}) {
         </tr>)}</tbody></table>
       </div>}
     </section>
-  </div>;
+  </div></div>;
 }
 window.FlcAgentEligibility=FlcAgentEligibility;
