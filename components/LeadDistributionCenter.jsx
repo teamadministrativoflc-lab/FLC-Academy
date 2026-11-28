@@ -1,5 +1,41 @@
 // FLC Lead Distribution Center — protected agent/admin views and manual workflows.
 // Automatic assignments are controlled by the server-side automation switch and scheduled task.
+
+// Visible only to Academy Administration. Calls a Preview-only server API.
+// Never sends a CRM contact ID or AuraFlow token from the browser.
+function AuraFlowReadOnlyAdminTest() {
+  const [busy,setBusy]=React.useState(false);
+  const [status,setStatus]=React.useState('');
+  const run=async()=>{
+    if(busy)return;
+    setBusy(true);setStatus('');
+    try{
+      const {data,error}=await window.flcSupabase.auth.getSession();
+      if(error||!data?.session?.access_token)throw Error('Inicia sesión de nuevo.');
+      const response=await fetch('/api/auraflow-test-readonly',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+data.session.access_token,
+                 'Content-Type':'application/json'},
+        body:'{}',
+        cache:'no-store'
+      });
+      const result=await response.json();
+      setStatus(response.ok&&result?.connected&&result?.test_contact_found
+       ? 'Conexión verificada: se encontró únicamente el contacto ficticio. No se modificó información.'
+       : 'Prueba no completada ('+response.status+'): '+(result?.error||'Revisa la autorización o configuración.'));
+    }catch(e){setStatus('No se pudo completar la prueba: '+(e?.message||'Error de conexión'));}
+    finally{setBusy(false);}
+  };
+  return <div className="card" style={{margin:'14px 0',padding:20}}>
+    <h2 style={{fontSize:19,marginBottom:8}}>AuraFlow · Prueba de conexión (solo lectura)</h2>
+    <p style={{marginBottom:12}}>Consulta únicamente el contacto ficticio autorizado. No envía resultados ni modifica el CRM.</p>
+    <button type="button" className="btn btn-primary" disabled={busy} onClick={run}>
+      {busy?'Comprobando…':'Verificar contacto de prueba'}
+    </button>
+    {status&&<p role="status" style={{marginTop:12}}>{status}</p>}
+  </div>;
+}
+
 function LeadDistributionCenter({user,setPage}) {
   const [leads,setLeads]=React.useState([]);
   const [selected,setSelected]=React.useState(null);
@@ -282,6 +318,7 @@ function LeadDistributionCenter({user,setPage}) {
     <h1 className="page-title">Lead <em>Distribution Center</em></h1>
     <p className="page-sub">Vista de recepción de campañas. Las asignaciones automáticas dependen de la configuración del servidor, los agentes autorizados y sus reglas de campaña y estado.</p>
     {!isAdmin&&<FlcMyAvailability user={user}/>}
+    {isAdmin && window.location.hostname.endsWith('.vercel.app') && window.location.hostname!=='flc-academy.vercel.app' && <AuraFlowReadOnlyAdminTest/>}
     <div className="flc-leads-summary">
       <div className="card"><span>Leads visibles</span><strong>{leads.length}</strong></div>
       <div className="card"><span>Asignados</span><strong>{leads.filter(l=>l.assigned_agent_id).length}</strong></div>
