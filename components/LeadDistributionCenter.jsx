@@ -36,6 +36,47 @@ function AuraFlowReadOnlyAdminTest() {
   </div>;
 }
 
+
+function AuraFlowWriteLockedCheck() {
+  const [busy,setBusy]=React.useState(false);
+  const [message,setMessage]=React.useState('');
+  const check=async()=>{
+    if(busy)return;
+    setBusy(true);
+    setMessage('');
+    try{
+      const {data,error}=await window.flcSupabase.auth.getSession();
+      if(error||!data?.session?.access_token)throw Error('Tu sesión expiró. Vuelve a iniciar sesión.');
+      const response=await fetch('/api/auraflow-test-note-write',{
+        method:'POST',
+        headers:{Authorization:'Bearer '+data.session.access_token,'Content-Type':'application/json'},
+        body:'{}',
+        cache:'no-store'
+      });
+      const result=await response.json();
+      if(response.status===423 && result?.error==='Test write is disabled') {
+        setMessage('Correcto: escritura bloqueada (423). No se creó ninguna nota ni se modificó AuraFlow.');
+      }else if(response.status===401||response.status===403) {
+        setMessage('No se pudo validar la sesión administrativa ('+response.status+'). No se confirmó ninguna escritura.');
+      }else if(response.ok) {
+        setMessage('ATENCIÓN: la escritura respondió como habilitada. No vuelvas a presionar; avisa a Administración.');
+      }else{
+        setMessage('Resultado inesperado ('+response.status+'): '+(result?.error||'Error de prueba')+'. No repitas la solicitud hasta revisar la configuración.');
+      }
+    }catch(e){
+      setMessage('No se pudo completar la verificación: '+(e?.message||'error desconocido'));
+    }finally{setBusy(false);}
+  };
+  return <div className="card" style={{margin:'14px 0',padding:20}}>
+    <h2 style={{fontSize:19,marginBottom:8}}>AuraFlow · Comprobar bloqueo de escritura</h2>
+    <p style={{marginBottom:12}}>Prueba administrativa en Preview. El servidor debe rechazar cualquier creación de notas mientras la escritura esté desactivada.</p>
+    <button type="button" className="btn btn-primary" onClick={check} disabled={busy}>
+      {busy?'Verificando bloqueo…':'Comprobar bloqueo (sin escribir)'}
+    </button>
+    {message&&<p role="status" style={{marginTop:12}}>{message}</p>}
+  </div>;
+}
+
 function LeadDistributionCenter({user,setPage}) {
   const [leads,setLeads]=React.useState([]);
   const [selected,setSelected]=React.useState(null);
@@ -319,6 +360,7 @@ function LeadDistributionCenter({user,setPage}) {
     <p className="page-sub">Vista de recepción de campañas. Las asignaciones automáticas dependen de la configuración del servidor, los agentes autorizados y sus reglas de campaña y estado.</p>
     {!isAdmin&&<FlcMyAvailability user={user}/>}
     {isAdmin && window.location.hostname.endsWith('.vercel.app') && window.location.hostname!=='flc-academy.vercel.app' && <AuraFlowReadOnlyAdminTest/>}
+    {isAdmin && window.location.hostname.endsWith('.vercel.app') && window.location.hostname!=='flc-academy.vercel.app' && <AuraFlowWriteLockedCheck/>}
     <div className="flc-leads-summary">
       <div className="card"><span>Leads visibles</span><strong>{leads.length}</strong></div>
       <div className="card"><span>Asignados</span><strong>{leads.filter(l=>l.assigned_agent_id).length}</strong></div>
