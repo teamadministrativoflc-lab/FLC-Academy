@@ -78,6 +78,31 @@ END;
 $fn$;
 REVOKE ALL ON FUNCTION public.flc_distribution_reassign_one_admin(uuid,uuid,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.flc_distribution_reassign_one_admin(uuid,uuid,text) TO authenticated;
+
+-- Admin-only candidate list; campaign not required for a one-lead exception.
+CREATE OR REPLACE FUNCTION public.flc_distribution_reassignment_candidates(p_lead_id uuid)
+RETURNS TABLE(agent_id uuid,agent_name text)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
+AS $fn$
+BEGIN
+ IF auth.uid() IS NULL OR NOT EXISTS(
+  SELECT 1 FROM public.agent_profiles WHERE id=auth.uid() AND role='admin'
+ ) THEN RAISE EXCEPTION 'admin_only' USING ERRCODE='42501'; END IF;
+ RETURN QUERY
+ SELECT p.id,p.full_name
+ FROM public.flc_distribution_leads l
+ JOIN public.flc_distribution_agent_states st ON st.state_code=l.lead_state
+ JOIN public.agent_profiles p ON p.id=st.agent_id AND p.role='agent'
+ WHERE l.id=p_lead_id AND l.status='assigned'
+ AND NOT EXISTS(
+  SELECT 1 FROM public.flc_distribution_assignments a
+  WHERE a.lead_id=l.id AND a.agent_id=p.id AND a.ended_at IS NULL)
+ ORDER BY p.full_name
+ LIMIT 200;
+END;
+$fn$;
+REVOKE ALL ON FUNCTION public.flc_distribution_reassignment_candidates(uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.flc_distribution_reassignment_candidates(uuid) TO authenticated;
 COMMIT;
 
 -- Does not transfer agent-entered activities, change lead source, sync CRM,
