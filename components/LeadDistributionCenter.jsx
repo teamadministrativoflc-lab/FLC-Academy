@@ -77,6 +77,47 @@ function AuraFlowWriteLockedCheck() {
   </div>;
 }
 
+
+function AuraFlowSingleTestNoteButton() {
+  const [busy,setBusy]=React.useState(false);
+  const [feedback,setFeedback]=React.useState('');
+  const send=async()=>{
+    if(busy)return;
+    if(!window.confirm('¿Autorizas crear UNA nota de prueba exclusivamente en el contacto ficticio FLC PRUEBA SINCRONIZACION de AuraFlow? No cambia disposición ni contactos reales.'))return;
+    setBusy(true);setFeedback('');
+    try{
+      const {data,error}=await window.flcSupabase.auth.getSession();
+      if(error||!data?.session?.access_token)throw Error('Inicia sesión nuevamente.');
+      const response=await fetch('/api/auraflow-test-note-write',{
+        method:'POST',
+        headers:{Authorization:'Bearer '+data.session.access_token,
+          'Content-Type':'application/json'},
+        body:'{}',cache:'no-store'
+      });
+      const result=await response.json();
+      if(response.ok&&result?.created){
+        setFeedback('NOTA CREADA: revisa el contacto ficticio en AuraFlow. No vuelvas a presionar el botón.');
+      }else if(response.ok&&result?.already_exists){
+        setFeedback('Nota de prueba ya existente: no se creó otra.');
+      }else if(response.status===423){
+        setFeedback('Escritura desactivada. No se creó ninguna nota. No actives nada sin revisar con Administración.');
+      }else{
+        setFeedback('No se confirmó la escritura ('+response.status+'): '+(result?.error||'Error de servidor')+'. No reintentes hasta revisar AuraFlow.');
+      }
+    }catch(e){
+      setFeedback('Resultado no confirmado: '+(e?.message||'error')+'. Verifica AuraFlow antes de reintentar.');
+    }finally{setBusy(false);}
+  };
+  return <div className="card" style={{margin:'14px 0',padding:20}}>
+    <h2 style={{fontSize:19,marginBottom:8}}>AuraFlow · Nota única en contacto ficticio</h2>
+    <p style={{marginBottom:12}}>Solo Administración y Preview. No cambia disposiciones. La operación permanece desactivada hasta habilitación administrativa específica.</p>
+    <button type="button" className="btn btn-primary" onClick={send} disabled={busy}>
+      {busy?'Comprobando…':'Crear UNA nota de prueba'}
+    </button>
+    {feedback&&<p role="status" style={{marginTop:12}}>{feedback}</p>}
+  </div>;
+}
+
 function LeadDistributionCenter({user,setPage}) {
   const [leads,setLeads]=React.useState([]);
   const [selected,setSelected]=React.useState(null);
@@ -361,6 +402,7 @@ function LeadDistributionCenter({user,setPage}) {
     {!isAdmin&&<FlcMyAvailability user={user}/>}
     {isAdmin && window.location.hostname.endsWith('.vercel.app') && window.location.hostname!=='flc-academy.vercel.app' && <AuraFlowReadOnlyAdminTest/>}
     {isAdmin && window.location.hostname.endsWith('.vercel.app') && window.location.hostname!=='flc-academy.vercel.app' && <AuraFlowWriteLockedCheck/>}
+    {isAdmin && window.location.hostname.endsWith('.vercel.app') && window.location.hostname!=='flc-academy.vercel.app' && <AuraFlowSingleTestNoteButton/>}
     <div className="flc-leads-summary">
       <div className="card"><span>Leads visibles</span><strong>{leads.length}</strong></div>
       <div className="card"><span>Asignados</span><strong>{leads.filter(l=>l.assigned_agent_id).length}</strong></div>
