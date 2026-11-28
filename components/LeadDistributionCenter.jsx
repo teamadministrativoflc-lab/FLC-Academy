@@ -97,6 +97,12 @@ function LeadDistributionCenter({user,setPage}) {
   const [appointmentOverride,setAppointmentOverride]=React.useState(false);
   const [appointmentReason,setAppointmentReason]=React.useState('');
   const [realAssignResult,setRealAssignResult]=React.useState('');
+  const [reassignCandidates,setReassignCandidates]=React.useState([]);
+  const [reassignAgentId,setReassignAgentId]=React.useState('');
+  const [reassignReason,setReassignReason]=React.useState('');
+  const [reassignBusy,setReassignBusy]=React.useState(false);
+  const [reassignFeedback,setReassignFeedback]=React.useState('');
+
   const [rrTestBusy,setRrTestBusy]=React.useState(false);
   const [rrTestResult,setRrTestResult]=React.useState('');
   const [pendingQueue,setPendingQueue]=React.useState([]);
@@ -277,6 +283,42 @@ function LeadDistributionCenter({user,setPage}) {
     });
     return()=>{active=false;};
   },[selected?.lead_id,selected?.lifecycle_status,realPending]);
+  const canReassign=!!selected && isAdmin &&
+    selected.lifecycle_status==='assigned' && !!selected.assigned_agent_id &&
+    selected.lead_state && selected.source_campaign!=='FLC_TEST_INTEGRACION' &&
+    !selected.external_lead_id?.startsWith('FLC-PRUEBA-') &&
+    !selected.external_lead_id?.startsWith('FLC-HISTORIAL-');
+  React.useEffect(()=>{
+    setReassignAgentId('');setReassignReason('');setReassignFeedback('');
+    setReassignCandidates([]);
+    if(!canReassign)return;
+    let active=true;
+    window.flcSupabase.rpc('flc_distribution_reassignment_candidates',{
+      p_lead_id:selected.lead_id
+    }).then(({data,error:err})=>{
+      if(active){
+        setReassignCandidates(err?[]:(data||[]));
+        if(err)setReassignFeedback('Candidatos no disponibles: '+err.message);
+      }
+    });
+    return()=>{active=false;};
+  },[selected?.lead_id,canReassign]);
+  const reassignOne=async()=>{
+    if(!canReassign||!reassignAgentId||reassignBusy||reassignReason.trim().length<15)return;
+    const agent=reassignCandidates.find(a=>a.agent_id===reassignAgentId);
+    if(!agent)return;
+    if(!window.confirm('¿Confirmas la licencia vigente para '+selected.lead_state+
+      ' y la transferencia ÚNICAMENTE de '+(selected.contact_name||'este contacto')+
+      ' a '+agent.agent_name+'? Se conservará la asignación anterior en el historial. No modifica AuraFlow ni activa la campaña.'))return;
+    setReassignBusy(true);setReassignFeedback('');
+    const {data,error:err}=await window.flcSupabase.rpc('flc_distribution_reassign_one_admin',{
+      p_lead_id:selected.lead_id,p_agent_id:reassignAgentId,p_reason:reassignReason.trim()
+    });
+    setReassignBusy(false);
+    if(err){setReassignFeedback('No se reasignó: '+err.message);return;}
+    setReassignFeedback('Reasignado a '+(data?.agent_name||agent.agent_name));
+    setSelected(null);await refreshAll();
+  };
   const assignRealManually=async()=>{
     if(!realPending||!realAgentId||realAssignBusy)return;
     const agent=realAgents.find(a=>a.agent_id===realAgentId);
@@ -489,6 +531,26 @@ function LeadDistributionCenter({user,setPage}) {
         <p>Teléfono: {selected.phone||'—'}</p>
         <p>Correo: {selected.email||'—'}</p>
         <p>Estado: {selected.lead_state||'No identificado'}</p>
+        {canReassign&&<div style={{padding:'14px 0',borderTop:'1px solid #dce8d7'}}>
+          <h3>Reasignar lead (solo Administración)</h3>
+          <p>Transfiere únicamente este contacto. Requiere autorización de estado y licencia vigente.
+            No activa campañas, no modifica AuraFlow ni elimina el historial.</p>
+          <select aria-label="Nuevo agente" value={reassignAgentId}
+            onChange={e=>setReassignAgentId(e.target.value)}>
+            <option value="">Seleccionar agente con estado autorizado</option>
+            {reassignCandidates.map(a=><option key={a.agent_id} value={a.agent_id}>{a.agent_name}</option>)}
+          </select>
+          <label htmlFor="flc-reassign-reason" style={{display:'block',marginTop:10}}>Motivo de la reasignación</label>
+          <input id="flc-reassign-reason" type="text" maxLength={500}
+            placeholder="Ej. Gestión de llamada y seguimiento con agente autorizado"
+            value={reassignReason} onChange={e=>setReassignReason(e.target.value)}
+            style={{width:'100%',padding:10,border:'1px solid #dce8d7',borderRadius:7}} />
+          <button type="button" className="btn-green" style={{marginTop:10}}
+            disabled={!reassignAgentId||reassignReason.trim().length<15||reassignBusy}
+            onClick={reassignOne}>{reassignBusy?'Reasignando…':'Confirmar reasignación'}</button>
+          {reassignFeedback&&<p role="status">{reassignFeedback}</p>}
+          {!reassignFeedback&&reassignCandidates.length===0&&<p>No hay agentes autorizados para este estado.</p>}
+        </div>}
         {realPending&&<div style={{padding:'14px 0',borderTop:'1px solid #dce8d7'}}>
           <h3>Asignar lead real manualmente</h3>
           <p style={{color:'#92550c'}}>Solo Administración. Se exige autorización de campaña y estado. La asignación ordinaria también requiere disponibilidad activa. No modifica AuraFlow.</p>
