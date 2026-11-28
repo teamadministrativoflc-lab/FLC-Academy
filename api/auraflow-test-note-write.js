@@ -42,7 +42,7 @@ export default async function handler(req,res){
  const token=process.env.AURAFLOW_API_TOKEN;
  if(!/^[A-Za-z0-9]{20}$/.test(id||'')||!token?.startsWith('pit-'))
   return reply(res,503,{error:'Test contact or credential not configured'});
- const headers={Authorization:'Bearer '+token,Version:'v3',Accept:'application/json'};
+ const headers={Authorization:'Bearer '+token,Version:'2021-07-28',Accept:'application/json'};
  const url=BASE_URL+'/contacts/'+encodeURIComponent(id)+'/notes';
  try{
   // Check for the unique marker first. If an earlier request succeeded but
